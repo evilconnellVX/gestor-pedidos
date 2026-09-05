@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Pedidos - Punto de Venta</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @media print {
+            body * { visibility: hidden; }
+            #printable-ticket, #printable-ticket * { visibility: visible; }
+            #printable-ticket { 
+                position: absolute; 
+                left: 0; 
+                top: 0; 
+                width: 100%; 
+                box-shadow: none; 
+                border: none; 
+                padding: 0; 
+                margin: 0; 
+            }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col md:flex-row">
+
+    <div id="loading-spinner" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 text-center">
+        <svg class="animate-spin h-12 w-12 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p id="loading-status-text" class="text-gray-600 font-semibold text-lg">Conectando con la nube de Firebase...</p>
+        <div id="file-protocol-warning" class="hidden mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg max-w-md text-left text-sm text-amber-800">
+            <p class="font-bold mb-1">⚠️ Error al abrir el archivo de forma local:</p>
+            <p>Los navegadores móviles bloquean las conexiones a Firebase cuando abres un archivo <code class="bg-amber-100 px-1 rounded">.html</code> guardado directamente en la memoria del celular (<code class="bg-amber-100 px-1 rounded">file://</code>).</p>
+            <p class="mt-2 font-semibold">Solución:</p>
+            <p>Sube el archivo a un servidor web gratuito como <strong>GitHub Pages</strong> o <strong>Netlify Drop</strong> y ábrelo usando un enlace <code class="bg-amber-100 px-1 rounded">https://</code>.</p>
+        </div>
+    </div>
+
+    <!-- Navigation Sidebar -->
+    <nav id="sidebar" class="hidden md:block w-full md:w-64 bg-white shadow-lg z-30 fixed md:sticky top-0 h-screen overflow-y-auto shrink-0">
+        <div class="p-6">
+            <h1 id="nav-business-name" class="text-2xl font-black text-blue-700 tracking-tight truncate">Mi Negocio</h1>
+            <p class="text-xs text-gray-400 mt-1 uppercase tracking-wider font-semibold">Control de Pedidos</p>
+        </div>
+        <div class="px-4 space-y-1" id="nav-items">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors bg-blue-50 text-blue-700">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                Panel
+            </button>
+            <button onclick="switchTab('orders')" id="nav-orders" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                Pedidos
+            </button>
+            <button onclick="switchTab('customers')" id="nav-customers" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                Clientes
+            </button>
+            <button onclick="switchTab('products')" id="nav-products" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                Productos
+            </button>
+            <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Configuración
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content Shell -->
+    <main class="flex-1 flex flex-col min-h-screen md:h-screen md:overflow-y-auto">
+        <!-- Mobile Header -->
+        <header class="md:hidden bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-20">
+            <h1 id="mobile-business-name" class="text-xl font-bold text-gray-800 truncate">Mi Negocio</h1>
+            <button onclick="toggleMobileMenu()" class="p-2 text-gray-600 focus:outline-none">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+        </header>
+
+        <div class="p-4 md:p-8 flex-1">
+            <!-- TAB 1: DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <h2 class="text-2xl font-bold text-gray-800">Resumen Financiero</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
+                        <h3 class="text-lg font-medium opacity-90">Total Cobrado</h3>
+                        <p id="dash-total-cobrado" class="text-3xl font-bold mt-2">$0.00</p>
+                        <p class="text-sm opacity-80 mt-1">Dinero ingresado (pagos y abonos)</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg">
+                        <h3 class="text-lg font-medium opacity-90">Por Cobrar</h3>
+                        <p id="dash-por-cobrar" class="text-3xl font-bold mt-2">$0.00</p>
+                        <p class="text-sm opacity-80 mt-1">Saldo pendiente de pedidos</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+                        <h3 class="text-lg font-medium opacity-90">Ganancia Neta (Proyectada)</h3>
+                        <p id="dash-ganancia-neta" class="text-3xl font-bold mt-2">$0.00</p>
+                        <p class="text-sm opacity-80 mt-1">Ventas - Costos de proveedor</p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow p-6 mt-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Actividad Reciente</h3>
+                    <div id="dash-recent-orders" class="space-y-4">
+                        <p class="text-gray-500">Cargando datos...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: ORDERS -->
+            <section id="tab-orders" class="tab-content hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">Gestión de Pedidos</h2>
+                    <button onclick="openOrderModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        Nuevo Pedido
+                    </button>
+                </div>
+                <div id="orders-list" class="grid gap-4">
+                    <p class="text-gray-500">No hay pedidos registrados.</p>
+                </div>
+            </section>
+
+            <!-- TAB 3: CUSTOMERS -->
+            <section id="tab-customers" class="tab-content hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">Directorio de Clientes</h2>
+                    <button onclick="openCustomerModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        Nuevo Cliente
+                    </button>
+                </div>
+                <div id="customers-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <p class="text-gray-500">Cargando clientes...</p>
+                </div>
+            </section>
+
+            <!-- TAB 4: PRODUCTS -->
+            <section id="tab-products" class="tab-content hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-800">Catálogo de Productos</h2>
+                    <button onclick="openProductModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        Nuevo Producto
+                    </button>
+                </div>
+                <div id="products-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <p class="text-gray-500">Cargando productos...</p>
+                </div>
+            </section>
+
+            <!-- TAB 5: SETTINGS -->
+            <section id="tab-settings" class="tab-content hidden">
+                <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Configuración del Negocio</h2>
+                    <p class="text-gray-500 mb-6 text-sm">Estos datos aparecerán en los tickets y recibos generados para tus clientes.</p>
+
+                    <form id="form-settings" onsubmit="saveSettings(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Nombre del Negocio</label>
+                            <input required id="setting-name" type="text" class="mt-1 w-full p-2 border rounded-md bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500" placeholder="Ej. Tiendita de Mamá">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Teléfono</label>
+                            <input id="setting-phone" type="tel" class="mt-1 w-full p-2 border rounded-md bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500" placeholder="Ej. 55 1234 5678">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Dirección</label>
+                            <textarea id="setting-address" class="mt-1 w-full p-2 border rounded-md bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500" rows="3" placeholder="Calle, Número, Colonia..."></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg mt-6 font-medium hover:bg-blue-700 transition">Guardar Configuración</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- MODAL: Order Form -->
+    <div id="modal-order" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 class="text-xl font-bold text-gray-800">Crear Nuevo Pedido</h2>
+                <button onclick="closeModal('modal-order')" class="text-gray-500 hover:text-gray-700 p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <form onsubmit="handleCreateOrder(event)" class="p-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Cliente</label>
+                    <select id="order-customer" required class="mt-1 w-full p-2 border rounded-md">
+                        <option value="">Selecciona un cliente...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Producto</label>
+                    <select id="order-product" required onchange="onOrderProductChange()" class="mt-1 w-full p-2 border rounded-md">
+                        <option value="">Selecciona un producto...</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Cantidad</label>
+                        <input id="order-quantity" required type="number" min="1" value="1" oninput="updateOrderTotalCalculation()" class="mt-1 w-full p-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Precio Final (C/U)</label>
+                        <input id="order-final-price" required type="number" min="0" step="0.01" oninput="updateOrderTotalCalculation()" class="mt-1 w-full p-2 border rounded-md" placeholder="Descuento opcional...">
+                    </div>
+                </div>
+                <div id="order-total-preview" class="bg-gray-50 p-3 rounded text-sm text-right font-medium text-gray-700">
+                    Total del Pedido: <span id="order-total-amount" class="text-lg text-blue-600 font-bold ml-2">$0.00</span>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition">Registrar Pedido</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Customer Form -->
+    <div id="modal-customer" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 id="modal-customer-title" class="text-xl font-bold text-gray-800">Nuevo Cliente</h2>
+                <button onclick="closeModal('modal-customer')" class="text-gray-500 hover:text-gray-700 p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <form onsubmit="handleSaveCustomer(event)" class="p-4 space-y-4">
+                <input type="hidden" id="customer-id">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Nombre completo</label>
+                    <input required id="customer-name" type="text" class="mt-1 w-full p-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Teléfono</label>
+                    <input id="customer-phone" type="tel" class="mt-1 w-full p-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Dirección</label>
+                    <textarea id="customer-address" class="mt-1 w-full p-2 border rounded-md" rows="2"></textarea>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition">Guardar Cliente</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Product Form -->
+    <div id="modal-product" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 id="modal-product-title" class="text-xl font-bold text-gray-800">Nuevo Producto</h2>
+                <button onclick="closeModal('modal-product')" class="text-gray-500 hover:text-gray-700 p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <form onsubmit="handleSaveProduct(event)" class="p-4 space-y-4">
+                <input type="hidden" id="product-id">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Nombre del producto</label>
+                    <input required id="product-name" type="text" class="mt-1 w-full p-2 border rounded-md">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Descripción</label>
+                    <textarea id="product-description" class="mt-1 w-full p-2 border rounded-md" rows="3"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Precio Proveedor (Costo)</label>
+                        <input required id="product-cost-price" type="number" min="0" step="0.01" class="mt-1 w-full p-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Precio Público (Venta)</label>
+                        <input required id="product-sale-price" type="number" min="0" step="0.01" class="mt-1 w-full p-2 border rounded-md">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition">Guardar Producto</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Abonos / Payments -->
+    <div id="modal-abonos" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 class="text-xl font-bold text-gray-800">Historial de Abonos</h2>
+                <button onclick="closeModal('modal-abonos')" class="text-gray-500 hover:text-gray-700 p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div class="bg-gray-50 p-4 rounded-lg flex justify-between text-sm">
+                    <div>
+                        <p class="text-gray-500">Total Pedido</p>
+                        <p id="abono-modal-total" class="font-bold text-lg">$0.00</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-gray-500">Saldo Pendiente</p>
+                        <p id="abono-modal-pending" class="font-bold text-lg text-orange-600">$0.00</p>
+                    </div>
+                </div>
+
+                <div id="abonos-history-list" class="space-y-2 max-h-60 overflow-y-auto">
+                    <!-- Dynamic Abonos -->
+                </div>
+
+                <form onsubmit="handleAddAbono(event)" class="flex gap-2">
+                    <input id="abono-amount-input" required type="number" min="0.01" step="0.01" placeholder="Monto del abono..." class="flex-1 p-2 border rounded-md">
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition">
+                        + Abonar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Ticket Print Preview -->
+    <div id="modal-ticket" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-4">
+            <div class="flex justify-between items-center mb-4 no-print">
+                <h2 class="text-xl font-bold text-gray-800">Vista Previa de Ticket</h2>
+                <button onclick="closeModal('modal-ticket')" class="text-gray-500 hover:text-gray-700 p-1">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <div id="printable-ticket" class="bg-white p-6 border rounded-lg font-mono text-sm text-gray-800 max-w-sm mx-auto shadow-sm">
+                <div class="text-center border-b border-dashed pb-4 mb-4">
+                    <h2 id="ticket-business-name" class="text-xl font-bold uppercase">NEGOCIO</h2>
+                    <p id="ticket-business-address" class="text-xs"></p>
+                    <p id="ticket-business-phone" class="text-xs"></p>
+                    <p id="ticket-date" class="mt-2 text-xs text-gray-500"></p>
+                </div>
+                
+                <div class="mb-4">
+                    <p><span class="font-semibold">Cliente:</span> <span id="ticket-customer-name"></span></p>
+                </div>
+
+                <div class="border-b border-dashed pb-4 mb-4">
+                    <div class="flex justify-between font-bold mb-2">
+                        <span>Cant. Desc</span>
+                        <span>Importe</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span id="ticket-product-desc"></span>
+                        <span id="ticket-product-total"></span>
+                    </div>
+                    <div id="ticket-savings-row" class="hidden text-xs text-gray-500 text-right mt-1">
+                        Precio Catálogo: <span id="ticket-catalog-price"></span> c/u<br/>
+                        Ahorraste: <span id="ticket-savings-amount" class="font-bold text-green-600"></span>
+                    </div>
+                </div>
+
+                <div class="space-y-1 text-right mb-4">
+                    <p id="ticket-total" class="text-lg font-bold">Total: $0.00</p>
+                    <p id="ticket-paid" class="text-gray-600">Abonado: $0.00</p>
+                    <p id="ticket-pending" class="font-bold border-t border-dashed pt-1 mt-1">Pendiente: $0.00</p>
+                    <p id="ticket-status-badge" class="mt-2 font-bold uppercase text-center text-lg"></p>
+                </div>
+
+                <div id="ticket-payments-history" class="text-xs text-gray-500 border-t border-dashed pt-2 mt-2 hidden">
+                    <p class="font-bold mb-1">Historial de Pagos:</p>
+                    <div id="ticket-payments-list" class="space-y-1"></div>
+                </div>
+                
+                <div class="text-center text-xs mt-6 text-gray-400">
+                    ¡Gracias por su preferencia!
+                </div>
+            </div>
+
+            <button onclick="window.print()" class="no-print w-full bg-gray-800 text-white py-3 rounded-lg mt-6 font-bold hover:bg-black flex justify-center items-center gap-2 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                Imprimir / Guardar PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Global Toast Container -->
+    <div id="toast" class="hidden fixed bottom-4 right-4 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 transition-all">
+        <span id="toast-message"></span>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Check if opened via file:// protocol
+        if (window.location.protocol === 'file:') {
+            document.getElementById('loading-status-text').textContent = 'No se puede cargar el archivo localmente en este navegador.';
+            document.getElementById('file-protocol-warning').classList.remove('hidden');
+        }
+
+        // User Custom Firebase Configuration
+        const customFirebaseConfig = {
+            apiKey: "AIzaSyC-Qu56m35KtD9DIq17Qk3lu1Ai4a02WJA",
+            authDomain: "punto-de-venta-3c290.firebaseapp.com",
+            projectId: "punto-de-venta-3c290",
+            storageBucket: "punto-de-venta-3c290.firebasestorage.app",
+            messagingSenderId: "239887899740",
+            appId: "1:239887899740:web:9622470a64e0dd6f249a99"
+        };
+
+        const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config && __firebase_config !== '{}')
+            ? JSON.parse(__firebase_config)
+            : customFirebaseConfig;
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'punto-de-venta-3c290';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (e) {
+            console.error("Firebase Initialization Error:", e);
+        }
+
+        // Global Application State
+        window.state = {
+            user: null,
+            customers: [],
+            products: [],
+            orders: [],
+            settings: { name: 'Mi Negocio', phone: '', address: '' },
+            activeTab: 'dashboard',
+            activeOrderForAbonos: null,
+            activeOrderForTicket: null
+        };
+
+        // Utility: Toast display
+        window.showToast = function(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-message');
+            msgEl.textContent = message;
+            toast.className = `fixed bottom-4 right-4 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 ${type === 'error' ? 'bg-red-500' : 'bg-green-600'}`;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        };
+
+        // Utility: Formatters
+        window.formatCurrency = function(amount) {
+            return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount || 0);
+        };
+
+        window.formatDate = function(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
+
+        // Auth Init
+        const initAuth = async () => {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Auth Error:", err);
+                const statusEl = document.getElementById('loading-status-text');
+                if (statusEl) {
+                    statusEl.textContent = 'Error al conectar con Firebase. Revisa que la autenticación anónima esté activa.';
+                }
+            }
+        };
+
+        // Fallback Timeout if Firebase takes too long
+        setTimeout(() => {
+            if (!window.state.user && window.location.protocol !== 'file:') {
+                const statusEl = document.getElementById('loading-status-text');
+                if (statusEl && !document.getElementById('loading-spinner').classList.contains('hidden')) {
+                    statusEl.textContent = 'La conexión a Firebase está tardando más de lo normal. Revisa tu conexión a internet o la configuración en Firebase Console.';
+                }
+            }
+        }, 8000);
+
+        onAuthStateChanged(auth, (user) => {
+            window.state.user = user;
+            if (user) {
+                setupRealtimeListeners(user.uid);
+            } else {
+                document.getElementById('loading-spinner').classList.add('hidden');
+            }
+        });
+
+        initAuth();
+
+        // Realtime Listeners
+        function setupRealtimeListeners(userId) {
+            const basePath = `artifacts/${appId}/users/${userId}`;
+
+            // Customers Listener
+            onSnapshot(collection(db, `${basePath}/customers`), (snap) => {
+                window.state.customers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderCustomers();
+                renderDashboard();
+            }, (err) => console.error("Error fetching customers:", err));
+
+            // Products Listener
+            onSnapshot(collection(db, `${basePath}/products`), (snap) => {
+                window.state.products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderProducts();
+                renderDashboard();
+            }, (err) => console.error("Error fetching products:", err));
+
+            // Orders Listener
+            onSnapshot(collection(db, `${basePath}/orders`), (snap) => {
+                const fetchedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                fetchedOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                window.state.orders = fetchedOrders;
+                renderOrders();
+                renderDashboard();
+                renderCustomers(); // re-calculate customer order counts
+
+                // Refresh active modals if open
+                if (window.state.activeOrderForAbonos) {
+                    const updated = fetchedOrders.find(o => o.id === window.state.activeOrderForAbonos.id);
+                    if (updated) {
+                        window.state.activeOrderForAbonos = updated;
+                        renderAbonosModalData();
+                    }
+                }
+            }, (err) => console.error("Error fetching orders:", err));
+
+            // Settings Listener
+            onSnapshot(doc(db, `${basePath}/settings`, 'business_info'), (docSnap) => {
+                if (docSnap.exists()) {
+                    window.state.settings = docSnap.data();
+                    document.getElementById('nav-business-name').textContent = window.state.settings.name || 'Mi Negocio';
+                    document.getElementById('mobile-business-name').textContent = window.state.settings.name || 'Mi Negocio';
+                    document.getElementById('setting-name').value = window.state.settings.name || '';
+                    document.getElementById('setting-phone').value = window.state.settings.phone || '';
+                    document.getElementById('setting-address').value = window.state.settings.address || '';
+                }
+                document.getElementById('loading-spinner').classList.add('hidden');
+            }, (err) => {
+                console.error("Error fetching settings:", err);
+                document.getElementById('loading-spinner').classList.add('hidden');
+            });
+        }
+
+        // Helpers for Firestore Writes
+        function getCollectionPath(colName) {
+            return `artifacts/${appId}/users/${window.state.user.uid}/${colName}`;
+        }
+
+        // Calculate paid amount
+        window.getOrderPaidTotal = function(order) {
+            return (order.payments || []).reduce((sum, p) => sum + Number(p.amount), 0);
+        };
+
+        // Render Dashboard
+        window.renderDashboard = function() {
+            const orders = window.state.orders;
+            const products = window.state.products;
+
+            const totalCobrado = orders.reduce((sum, o) => sum + getOrderPaidTotal(o), 0);
+            
+            const porCobrar = orders.reduce((sum, o) => {
+                const orderTotal = o.finalPrice * o.quantity;
+                const paid = getOrderPaidTotal(o);
+                return sum + Math.max(0, orderTotal - paid);
+            }, 0);
+
+            const gananciaNeta = orders.reduce((sum, o) => {
+                const product = products.find(p => p.id === o.productId);
+                const cost = product ? Number(product.costPrice) : 0;
+                const profitPerItem = Number(o.finalPrice) - cost;
+                return sum + (profitPerItem * Number(o.quantity));
+            }, 0);
+
+            document.getElementById('dash-total-cobrado').textContent = formatCurrency(totalCobrado);
+            document.getElementById('dash-por-cobrar').textContent = formatCurrency(porCobrar);
+            document.getElementById('dash-ganancia-neta').textContent = formatCurrency(gananciaNeta);
+
+            // Recent activity list
+            const recentEl = document.getElementById('dash-recent-orders');
+            if (orders.length === 0) {
+                recentEl.innerHTML = '<p class="text-gray-500">No hay pedidos recientes.</p>';
+                return;
+            }
+
+            recentEl.innerHTML = orders.slice(0, 5).map(order => {
+                const customer = window.state.customers.find(c => c.id === order.customerId);
+                const product = window.state.products.find(p => p.id === order.productId);
+                const total = order.finalPrice * order.quantity;
+                const isPaid = getOrderPaidTotal(order) >= total;
+
+                return `
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <div>
+                            <p class="font-semibold">${customer ? customer.name : 'Cliente Eliminado'}</p>
+                            <p class="text-sm text-gray-600">${product ? product.name : 'Producto Eliminado'} (x${order.quantity})</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-bold text-gray-800">${formatCurrency(total)}</p>
+                            <span class="text-xs px-2 py-1 rounded-full ${isPaid ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}">
+                                ${isPaid ? 'Pagado' : 'Pendiente'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.renderOrders = function() {
+            const listEl = document.getElementById('orders-list');
+            const orders = window.state.orders;
+
+            if (orders.length === 0) {
+                listEl.innerHTML = '<p class="text-gray-500">No hay pedidos registrados.</p>';
+                return;
+            }
+
+            listEl.innerHTML = orders.map(order => {
+                const customer = window.state.customers.find(c => c.id === order.customerId);
+                const product = window.state.products.find(p => p.id === order.productId);
+                const total = order.finalPrice * order.quantity;
+                const paid = getOrderPaidTotal(order);
+                const isPaid = paid >= total;
+                const progress = Math.min(100, (paid / total) * 100) || 0;
+
+                return `
+                    <div class="bg-white p-5 rounded-xl shadow border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex-1">
+                            <div class="flex justify-between md:justify-start gap-4 items-center mb-2">
+                                <h3 class="font-bold text-lg text-gray-800">${customer ? customer.name : 'Cliente Desconocido'}</h3>
+                                <span class="text-xs px-2 py-1 rounded-full font-medium ${isPaid ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}">
+                                    ${isPaid ? 'Pagado' : 'Pendiente'}
+                                </span>
+                            </div>
+                            <p class="text-gray-600 mb-1">
+                                <span class="font-medium">${product ? product.name : 'Producto Desconocido'}</span> (x${order.quantity})
+                            </p>
+                            <p class="text-sm text-gray-500">Fecha: ${formatDate(order.createdAt)}</p>
+                            
+                            <div class="mt-3 max-w-sm">
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-500">Pagado: ${formatCurrency(paid)}</span>
+                                    <span class="text-gray-800 font-medium">Total: ${formatCurrency(total)}</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="h-2 rounded-full ${isPaid ? 'bg-green-500' : 'bg-blue-500'}" style="width: ${progress}%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0">
+                            <button onclick="openAbonosModal('${order.id}')" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-lg font-medium transition flex-1 md:flex-none text-center">
+                                Abonos
+                            </button>
+                            <button onclick="openTicketModal('${order.id}')" class="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-lg transition flex justify-center items-center flex-1 md:flex-none">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                <span class="ml-2 md:hidden">Ticket</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.renderCustomers = function() {
+            const listEl = document.getElementById('customers-list');
+            const customers = window.state.customers;
+
+            if (customers.length === 0) {
+                listEl.innerHTML = '<p class="text-gray-500">No hay clientes registrados.</p>';
+                return;
+            }
+
+            listEl.innerHTML = customers.map(customer => {
+                const cOrders = window.state.orders.filter(o => o.customerId === customer.id);
+                const totalSpent = cOrders.reduce((sum, o) => sum + (o.finalPrice * o.quantity), 0);
+                const hasOrders = cOrders.length > 0;
+
+                return `
+                    <div class="bg-white p-5 rounded-xl shadow border border-gray-100 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800">${customer.name}</h3>
+                            <p class="text-sm text-gray-500 mt-1">📞 ${customer.phone || 'Sin teléfono'}</p>
+                            <p class="text-sm text-gray-500 mt-1">📍 ${customer.address || 'Sin dirección'}</p>
+                            
+                            <div class="mt-4 bg-blue-50 p-3 rounded-lg">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-blue-800 font-medium">Pedidos Totales:</span>
+                                    <span class="font-bold text-blue-900">${cOrders.length}</span>
+                                </div>
+                                <div class="flex justify-between text-sm mt-1">
+                                    <span class="text-blue-800 font-medium">Total Gastado:</span>
+                                    <span class="font-bold text-blue-900">${formatCurrency(totalSpent)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 flex gap-2">
+                            <button onclick="editCustomer('${customer.id}')" class="flex-1 bg-gray-100 text-gray-700 py-2 rounded hover:bg-gray-200 transition">Editar</button>
+                            <button onclick="deleteCustomer('${customer.id}')" class="px-4 py-2 rounded text-white flex justify-center items-center ${hasOrders ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600 transition'}" ${hasOrders ? 'disabled' : ''}>
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.renderProducts = function() {
+            const listEl = document.getElementById('products-list');
+            const products = window.state.products;
+
+            if (products.length === 0) {
+                listEl.innerHTML = '<p class="text-gray-500">No hay productos en el catálogo.</p>';
+                return;
+            }
+
+            listEl.innerHTML = products.map(product => {
+                const inUse = window.state.orders.some(o => o.productId === product.id);
+
+                return `
+                    <div class="bg-white p-5 rounded-xl shadow border border-gray-100 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800">${product.name}</h3>
+                            <p class="text-sm text-gray-500 mt-1 line-clamp-2">${product.description || 'Sin descripción'}</p>
+                            <div class="mt-4 space-y-1">
+                                <p class="text-sm flex justify-between"><span class="text-gray-500">Precio Costo:</span> <span class="font-medium">${formatCurrency(product.costPrice)}</span></p>
+                                <p class="text-sm flex justify-between"><span class="text-gray-500">Precio Venta:</span> <span class="font-bold text-green-600">${formatCurrency(product.salePrice)}</span></p>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex gap-2 pt-4 border-t">
+                            <button onclick="editProduct('${product.id}')" class="flex-1 bg-gray-100 text-gray-700 py-2 rounded hover:bg-gray-200 transition">Editar</button>
+                            <button onclick="deleteProduct('${product.id}')" class="px-4 py-2 rounded text-white flex justify-center items-center ${inUse ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600 transition'}" ${inUse ? 'disabled' : ''}>
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        // Form Handler: Save Settings
+        window.saveSettings = async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('setting-name').value;
+            const phone = document.getElementById('setting-phone').value;
+            const address = document.getElementById('setting-address').value;
+
+            try {
+                await setDoc(doc(db, getCollectionPath('settings'), 'business_info'), { name, phone, address });
+                showToast('Configuración guardada exitosamente');
+            } catch (err) {
+                showToast('Error al guardar configuración', 'error');
+            }
+        };
+
+        // Form Handler: Create Order
+        window.openOrderModal = function() {
+            const custSelect = document.getElementById('order-customer');
+            const prodSelect = document.getElementById('order-product');
+
+            custSelect.innerHTML = '<option value="">Selecciona un cliente...</option>' + 
+                window.state.customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+            prodSelect.innerHTML = '<option value="">Selecciona un producto...</option>' + 
+                window.state.products.map(p => `<option value="${p.id}">${p.name} - ${formatCurrency(p.salePrice)}</option>`).join('');
+
+            document.getElementById('order-quantity').value = 1;
+            document.getElementById('order-final-price').value = '';
+            document.getElementById('order-total-amount').textContent = '$0.00';
+
+            openModal('modal-order');
+        };
+
+        window.onOrderProductChange = function() {
+            const prodId = document.getElementById('order-product').value;
+            const prod = window.state.products.find(p => p.id === prodId);
+            if (prod) {
+                document.getElementById('order-final-price').value = prod.salePrice;
+                updateOrderTotalCalculation();
+            }
+        };
+
+        window.updateOrderTotalCalculation = function() {
+            const qty = Number(document.getElementById('order-quantity').value) || 0;
+            const price = Number(document.getElementById('order-final-price').value) || 0;
+            document.getElementById('order-total-amount').textContent = formatCurrency(qty * price);
+        };
+
+        window.handleCreateOrder = async function(e) {
+            e.preventDefault();
+            const customerId = document.getElementById('order-customer').value;
+            const productId = document.getElementById('order-product').value;
+            const quantity = Number(document.getElementById('order-quantity').value);
+            const finalPrice = Number(document.getElementById('order-final-price').value);
+
+            const product = window.state.products.find(p => p.id === productId);
+
+            try {
+                await addDoc(collection(db, getCollectionPath('orders')), {
+                    customerId,
+                    productId,
+                    quantity,
+                    finalPrice,
+                    originalPrice: Number(product.salePrice),
+                    createdAt: new Date().toISOString(),
+                    payments: []
+                });
+                showToast('Pedido registrado con éxito');
+                closeModal('modal-order');
+            } catch (err) {
+                showToast('Error al crear pedido', 'error');
+            }
+        };
+
+        // Form Handler: Save Customer
+        window.openCustomerModal = function() {
+            document.getElementById('modal-customer-title').textContent = 'Nuevo Cliente';
+            document.getElementById('customer-id').value = '';
+            document.getElementById('customer-name').value = '';
+            document.getElementById('customer-phone').value = '';
+            document.getElementById('customer-address').value = '';
+            openModal('modal-customer');
+        };
+
+        window.editCustomer = function(id) {
+            const c = window.state.customers.find(item => item.id === id);
+            if (!c) return;
+            document.getElementById('modal-customer-title').textContent = 'Editar Cliente';
+            document.getElementById('customer-id').value = c.id;
+            document.getElementById('customer-name').value = c.name || '';
+            document.getElementById('customer-phone').value = c.phone || '';
+            document.getElementById('customer-address').value = c.address || '';
+            openModal('modal-customer');
+        };
+
+        window.handleSaveCustomer = async function(e) {
+            e.preventDefault();
+            const id = document.getElementById('customer-id').value;
+            const name = document.getElementById('customer-name').value;
+            const phone = document.getElementById('customer-phone').value;
+            const address = document.getElementById('customer-address').value;
+
+            try {
+                if (id) {
+                    await updateDoc(doc(db, getCollectionPath('customers'), id), { name, phone, address });
+                    showToast('Cliente actualizado');
+                } else {
+                    await addDoc(collection(db, getCollectionPath('customers')), { name, phone, address });
+                    showToast('Cliente añadido');
+                }
+                closeModal('modal-customer');
+            } catch (err) {
+                showToast('Error al guardar cliente', 'error');
+            }
+        };
+
+        window.deleteCustomer = async function(id) {
+            const hasOrders = window.state.orders.some(o => o.customerId === id);
+            if (hasOrders) {
+                showToast('No puedes borrar este cliente porque tiene pedidos.', 'error');
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, getCollectionPath('customers'), id));
+                showToast('Cliente eliminado');
+            } catch (err) {
+                showToast('Error al eliminar cliente', 'error');
+            }
+        };
+
+        // Form Handler: Save Product
+        window.openProductModal = function() {
+            document.getElementById('modal-product-title').textContent = 'Nuevo Producto';
+            document.getElementById('product-id').value = '';
+            document.getElementById('product-name').value = '';
+            document.getElementById('product-description').value = '';
+            document.getElementById('product-cost-price').value = '';
+            document.getElementById('product-sale-price').value = '';
+            openModal('modal-product');
+        };
+
+        window.editProduct = function(id) {
+            const p = window.state.products.find(item => item.id === id);
+            if (!p) return;
+            document.getElementById('modal-product-title').textContent = 'Editar Producto';
+            document.getElementById('product-id').value = p.id;
+            document.getElementById('product-name').value = p.name || '';
+            document.getElementById('product-description').value = p.description || '';
+            document.getElementById('product-cost-price').value = p.costPrice || '';
+            document.getElementById('product-sale-price').value = p.salePrice || '';
+            openModal('modal-product');
+        };
+
+        window.handleSaveProduct = async function(e) {
+            e.preventDefault();
+            const id = document.getElementById('product-id').value;
+            const name = document.getElementById('product-name').value;
+            const description = document.getElementById('product-description').value;
+            const costPrice = Number(document.getElementById('product-cost-price').value);
+            const salePrice = Number(document.getElementById('product-sale-price').value);
+
+            try {
+                if (id) {
+                    await updateDoc(doc(db, getCollectionPath('products'), id), { name, description, costPrice, salePrice });
+                    showToast('Producto actualizado');
+                } else {
+                    await addDoc(collection(db, getCollectionPath('products')), { name, description, costPrice, salePrice });
+                    showToast('Producto añadido');
+                }
+                closeModal('modal-product');
+            } catch (err) {
+                showToast('Error al guardar producto', 'error');
+            }
+        };
+
+        window.deleteProduct = async function(id) {
+            const inUse = window.state.orders.some(o => o.productId === id);
+            if (inUse) {
+                showToast('No se puede borrar: Producto en uso por pedidos.', 'error');
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, getCollectionPath('products'), id));
+                showToast('Producto eliminado');
+            } catch (err) {
+                showToast('Error al eliminar producto', 'error');
+            }
+        };
+
+        // Abonos Modal
+        window.openAbonosModal = function(orderId) {
+            const order = window.state.orders.find(o => o.id === orderId);
+            if (!order) return;
+            window.state.activeOrderForAbonos = order;
+            renderAbonosModalData();
+            openModal('modal-abonos');
+        };
+
+        function renderAbonosModalData() {
+            const order = window.state.activeOrderForAbonos;
+            if (!order) return;
+
+            const total = order.finalPrice * order.quantity;
+            const paid = getOrderPaidTotal(order);
+            const pending = Math.max(0, total - paid);
+
+            document.getElementById('abono-modal-total').textContent = formatCurrency(total);
+            document.getElementById('abono-modal-pending').textContent = formatCurrency(pending);
+
+            const listEl = document.getElementById('abonos-history-list');
+            const payments = order.payments || [];
+
+            if (payments.length === 0) {
+                listEl.innerHTML = '<p class="text-gray-500 text-center py-4 text-sm">No hay abonos registrados.</p>';
+            } else {
+                listEl.innerHTML = payments.map(p => `
+                    <div class="flex justify-between items-center p-3 border rounded-lg hover:bg-gray-50">
+                        <div>
+                            <p class="font-medium text-gray-800">${formatCurrency(p.amount)}</p>
+                            <p class="text-xs text-gray-500">${formatDate(p.date)}</p>
+                        </div>
+                        <button onclick="handleDeleteAbono('${p.id}')" class="text-red-500 hover:text-red-700 p-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        window.handleAddAbono = async function(e) {
+            e.preventDefault();
+            const input = document.getElementById('abono-amount-input');
+            const amount = Number(input.value);
+            if (!amount || amount <= 0) return;
+
+            const order = window.state.activeOrderForAbonos;
+            const newPayment = {
+                id: Date.now().toString(),
+                amount,
+                date: new Date().toISOString()
+            };
+
+            const updatedPayments = [...(order.payments || []), newPayment];
+
+            try {
+                await updateDoc(doc(db, getCollectionPath('orders'), order.id), { payments: updatedPayments });
+                showToast('Abono registrado');
+                input.value = '';
+            } catch (err) {
+                showToast('Error al registrar abono', 'error');
+            }
+        };
+
+        window.handleDeleteAbono = async function(paymentId) {
+            const order = window.state.activeOrderForAbonos;
+            const updatedPayments = (order.payments || []).filter(p => p.id !== paymentId);
+
+            try {
+                await updateDoc(doc(db, getCollectionPath('orders'), order.id), { payments: updatedPayments });
+                showToast('Abono eliminado');
+            } catch (err) {
+                showToast('Error al eliminar abono', 'error');
+            }
+        };
+
+        // Ticket Modal
+        window.openTicketModal = function(orderId) {
+            const order = window.state.orders.find(o => o.id === orderId);
+            if (!order) return;
+
+            const customer = window.state.customers.find(c => c.id === order.customerId);
+            const product = window.state.products.find(p => p.id === order.productId);
+            const settings = window.state.settings;
+
+            const total = order.finalPrice * order.quantity;
+            const paid = getOrderPaidTotal(order);
+            const pending = Math.max(0, total - paid);
+
+            document.getElementById('ticket-business-name').textContent = settings.name || 'NEGOCIO';
+            document.getElementById('ticket-business-address').textContent = settings.address || '';
+            document.getElementById('ticket-business-phone').textContent = settings.phone ? `Tel: ${settings.phone}` : '';
+            document.getElementById('ticket-date').textContent = formatDate(order.createdAt);
+            document.getElementById('ticket-customer-name').textContent = customer ? customer.name : 'N/A';
+
+            document.getElementById('ticket-product-desc').textContent = `${order.quantity}x ${product ? product.name : 'Producto'}`;
+            document.getElementById('ticket-product-total').textContent = formatCurrency(total);
+
+            // Discount Savings Calculation
+            const savingsRow = document.getElementById('ticket-savings-row');
+            if (order.originalPrice > order.finalPrice) {
+                const totalSavings = (order.originalPrice - order.finalPrice) * order.quantity;
+                document.getElementById('ticket-catalog-price').textContent = formatCurrency(order.originalPrice);
+                document.getElementById('ticket-savings-amount').textContent = formatCurrency(totalSavings);
+                savingsRow.classList.remove('hidden');
+            } else {
+                savingsRow.classList.add('hidden');
+            }
+
+            document.getElementById('ticket-total').textContent = `Total: ${formatCurrency(total)}`;
+            document.getElementById('ticket-paid').textContent = `Abonado: ${formatCurrency(paid)}`;
+            document.getElementById('ticket-pending').textContent = `Pendiente: ${formatCurrency(pending)}`;
+
+            const badge = document.getElementById('ticket-status-badge');
+            if (pending === 0) {
+                badge.textContent = 'PAGADO';
+                badge.className = 'mt-2 font-bold uppercase text-center text-lg text-green-600';
+            } else {
+                badge.textContent = 'PENDIENTE';
+                badge.className = 'mt-2 font-bold uppercase text-center text-lg text-orange-500';
+            }
+
+            // Payment History in ticket
+            const historyContainer = document.getElementById('ticket-payments-history');
+            const historyList = document.getElementById('ticket-payments-list');
+            if ((order.payments || []).length > 0) {
+                historyList.innerHTML = order.payments.map(p => `
+                    <div class="flex justify-between">
+                        <span>${new Date(p.date).toLocaleDateString()}</span>
+                        <span>${formatCurrency(p.amount)}</span>
+                    </div>
+                `).join('');
+                historyContainer.classList.remove('hidden');
+            } else {
+                historyContainer.classList.add('hidden');
+            }
+
+            openModal('modal-ticket');
+        };
+
+        // Tab Switcher
+        window.switchTab = function(tabName) {
+            window.state.activeTab = tabName;
+            
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.className = 'nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50 hover:text-gray-900';
+            });
+            document.getElementById(`nav-${tabName}`).className = 'nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors bg-blue-50 text-blue-700';
+
+            // Close mobile menu if open
+            document.getElementById('sidebar').classList.add('hidden');
+            document.getElementById('sidebar').classList.add('md:block');
+        };
+
+        window.toggleMobileMenu = function() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden');
+        };
+
+        // Modal Helpers
+        window.openModal = function(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        };
+
+        window.closeModal = function(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        };
+    </script>
+</body>
+</html>
