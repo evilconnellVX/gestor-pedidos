@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Pedidos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body * { visibility: hidden; }
+            #area-impresion-ticket, #area-impresion-ticket * { visibility: visible; }
+            #area-impresion-ticket {
+                position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0;
+            }
+            .no-print { display: none !important; }
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .sync-dot {
+            height: 10px; width: 10px; background-color: #22c55e; border-radius: 50%;
+            display: inline-block; animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-white shadow-sm p-4 no-print relative z-10">
+        <div class="absolute top-4 right-4 flex items-center gap-2">
+            <button onclick="abrirModalSync()" class="flex items-center gap-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-2 rounded-lg shadow-sm border border-emerald-200 transition" title="Cómo sincronizar en varios dispositivos">
+                🌐 <span class="hidden md:inline">Sincronizar Dispositivos</span>
+            </button>
+            <button onclick="abrirModalConfig()" class="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition text-sm font-bold bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-lg shadow-sm border border-gray-200" title="Configurar Negocio">
+                ⚙️ <span class="hidden sm:inline">Negocio</span>
+            </button>
+        </div>
+        <div class="flex items-center justify-center gap-2 mb-4">
+            <h1 id="titulo-negocio" class="text-2xl font-black text-center text-blue-600 tracking-tight">Mi Negocio</h1>
+            <span class="sync-dot" title="Conectado a la Nube"></span>
+        </div>
+        
+        <nav class="flex justify-center space-x-2 sm:space-x-4 border-b border-gray-200 overflow-x-auto pb-1">
+            <button onclick="cambiarPestana('pedidos')" id="tab-pedidos" class="px-4 py-2 font-semibold text-blue-600 border-b-2 border-blue-600 transition whitespace-nowrap">📦 Pedidos</button>
+            <button onclick="cambiarPestana('clientes')" id="tab-clientes" class="px-4 py-2 font-medium text-gray-500 hover:text-blue-500 transition whitespace-nowrap">👥 Mis Clientes</button>
+            <button onclick="cambiarPestana('productos')" id="tab-productos" class="px-4 py-2 font-medium text-gray-500 hover:text-blue-500 transition whitespace-nowrap">🛍️ Catálogo</button>
+        </nav>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 no-print bg-gray-50">
+        <!-- PESTAÑA PEDIDOS -->
+        <section id="sec-pedidos" class="max-w-4xl mx-auto block">
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                <div class="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-blue-100 flex flex-col items-center justify-center text-center">
+                    <span class="text-[10px] sm:text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Total Cobrado</span>
+                    <span id="dash-cobrado" class="text-lg sm:text-2xl font-black text-gray-800">$0.00</span>
+                </div>
+                <div class="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-orange-100 flex flex-col items-center justify-center text-center">
+                    <span class="text-[10px] sm:text-xs font-bold text-orange-600 uppercase tracking-wider mb-1">Por Cobrar</span>
+                    <span id="dash-por-cobrar" class="text-lg sm:text-2xl font-black text-gray-800">$0.00</span>
+                </div>
+                <div class="bg-gradient-to-br from-green-50 to-green-100 p-3 sm:p-4 rounded-xl shadow-sm border border-green-200 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                    <span class="text-[10px] sm:text-xs font-bold text-green-700 uppercase tracking-wider mb-1" title="Ventas Totales menos Costos">Ganancia Neta</span>
+                    <span id="dash-ganancia" class="text-lg sm:text-2xl font-black text-green-800">$0.00</span>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">Historial de Pedidos</h2>
+                <button onclick="abrirModalPedido()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md flex items-center gap-2">
+                    <span>+ Nuevo Pedido</span>
+                </button>
+            </div>
+            <div id="lista-pedidos" class="space-y-4">
+                <div class="p-8 text-center text-gray-500">Cargando datos de la nube...</div>
+            </div>
+        </section>
+
+        <!-- PESTAÑA CLIENTES -->
+        <section id="sec-clientes" class="max-w-4xl mx-auto hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">Directorio de Clientes</h2>
+                <button onclick="abrirModal('modal-cliente')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md">
+                    + Nuevo Cliente
+                </button>
+            </div>
+            <div id="lista-clientes" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+
+        <!-- PESTAÑA PRODUCTOS -->
+        <section id="sec-productos" class="max-w-4xl mx-auto hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">Catálogo de Productos</h2>
+                <button onclick="abrirModal('modal-producto')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-md">
+                    + Nuevo Producto
+                </button>
+            </div>
+            <div id="lista-productos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </section>
+    </main>
+
+    <div id="modal-alerta" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-[99] no-print backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4"><span class="text-2xl">⚠️</span></div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2" id="alerta-titulo">Atención</h3>
+            <p class="text-sm text-gray-500 mb-6" id="alerta-mensaje">Mensaje.</p>
+            <button onclick="cerrarModal('modal-alerta')" class="w-full inline-flex justify-center rounded-xl px-4 py-2 bg-blue-600 text-white font-medium hover:bg-blue-700 transition">Entendido</button>
+        </div>
+    </div>
+
+    <div id="modal-sync" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-[85] no-print">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-emerald-700 flex items-center gap-2">🌐 ¿Cómo usarlo fuera de aquí?</h3>
+                <button onclick="cerrarModal('modal-sync')" class="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div class="text-sm text-gray-600 space-y-3 leading-relaxed">
+                <p>Para abrir este sistema en el teléfono o computadora de tu mamá de forma permanente:</p>
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2 text-xs">
+                    <p class="font-bold text-gray-800">Pasos:</p>
+                    <ol class="list-decimal list-inside space-y-1">
+                        <li>Guarda este archivo en tu computadora como <code class="bg-gray-200 px-1 rounded">index.html</code>.</li>
+                        <li>Arrástralo a <a href="https://app.netlify.com/drop" target="_blank" class="text-blue-600 underline font-bold">Netlify Drop</a> (es gratis) para obtener un enlace web personal.</li>
+                        <li>Abre ese enlace en su celular o compártelo para que lo use directo.</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="cerrarModal('modal-sync')" class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition">¡Entendido!</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-configuracion" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-[80] no-print">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 class="text-lg font-bold mb-4 text-gray-800">⚙️ Configuración del Negocio</h3>
+            <form onsubmit="guardarConfig(event)">
+                <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Negocio</label><input type="text" id="config-nombre" required class="w-full border border-gray-300 rounded-lg p-2 outline-none"></div>
+                <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label><input type="tel" id="config-telefono" class="w-full border border-gray-300 rounded-lg p-2 outline-none"></div>
+                <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label><textarea id="config-direccion" rows="2" class="w-full border border-gray-300 rounded-lg p-2 outline-none"></textarea></div>
+                <div class="flex justify-end space-x-3"><button type="button" onclick="cerrarModal('modal-configuracion')" class="px-4 py-2 text-gray-600">Cancelar</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">Guardar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-cliente" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-[70] no-print">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 class="text-lg font-bold mb-4 text-gray-800">👤 Registrar Cliente</h3>
+            <form onsubmit="guardarCliente(event)">
+                <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label><input type="text" id="nombre-cliente" required class="w-full border border-gray-300 rounded-lg p-2 outline-none"></div>
+                <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label><input type="tel" id="telefono-cliente" class="w-full border border-gray-300 rounded-lg p-2 outline-none"></div>
+                <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">Dirección / Notas</label><textarea id="direccion-cliente" rows="2" class="w-full border border-gray-300 rounded-lg p-2 outline-none"></textarea></div>
+                <div class="flex justify-end space-x-3"><button type="button" onclick="cerrarModal('modal-cliente')" class="px-4 py-2 text-gray-600">Cancelar</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">Guardar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-producto" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-[70] no-print">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 class="text-lg font-bold mb-4 text-gray-800">🛍️ Nuevo Producto</h3>
+            <form onsubmit="guardarProducto(event)">
+                <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label><input type="text" id="nombre-prod" required class="w-full border border-gray-300 rounded-lg p-2 outline-none"></div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Precio Costo (Proveedor)</label><input type="number" id="precio-costo-prod" required min="0" step="0.01" class="w-full border border-gray-300 rounded-lg p-2 bg-gray-50 outline-none"></div>
+                    <div><label class="block text-sm font-bold text-blue-700 mb-1">Precio Venta (Catálogo)</label><input type="number" id="precio-venta-prod" required min="0" step="0.01" class="w-full border border-gray-300 rounded-lg p-2 font-bold outline-none"></div>
+                </div>
+                <div class="mb-6"><label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label><textarea id="desc-prod" rows="2" class="w-full border border-gray-300 rounded-lg p-2 outline-none"></textarea></div>
+                <div class="flex justify-end space-x-3"><button type="button" onclick="cerrarModal('modal-producto')" class="px-4 py-2 text-gray-600">Cancelar</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">Guardar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-pedido" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-[60] no-print overflow-y-auto">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 my-8">
+            <h3 class="text-lg font-bold mb-4 text-blue-700">📦 Registrar Nuevo Pedido</h3>
+            <form onsubmit="guardarPedido(event)">
+                <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label><select id="select-cliente-pedido" required class="w-full border border-gray-300 rounded-lg p-2 bg-white outline-none"></select></div>
+                <div class="mb-4"><label class="block text-sm font-medium text-gray-700 mb-1">Producto</label><select id="producto-pedido" required onchange="actualizarPrecioVenta()" class="w-full border border-gray-300 rounded-lg p-2 bg-white outline-none"></select></div>
+                
+                <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <div class="flex justify-between items-center mb-1"><span class="text-xs text-blue-800">Costo Proveedor:</span><span id="precio-costo-display" class="font-bold text-gray-500">$0.00</span></div>
+                    <div class="flex justify-between items-center mb-3 pb-2 border-b border-blue-200"><span class="text-sm text-blue-900 font-bold">Precio Catálogo:</span><span id="precio-venta-normal-display" class="font-black text-blue-700">$0.00</span></div>
+                    <label class="block text-sm font-bold text-gray-800 mb-1">Precio Cobrado al Cliente ($)</label>
+                    <p class="text-xs text-blue-600 mb-2">Puedes bajar este precio para aplicar un descuento especial.</p>
+                    <div class="relative"><span class="absolute left-3 top-2 font-bold text-gray-500">$</span><input type="number" id="precio-venta-pedido" required min="0" step="0.01" class="w-full border border-gray-300 rounded-lg p-2 pl-8 font-black text-lg bg-white outline-none"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Cantidad</label><input type="number" id="cantidad-pedido" required min="1" value="1" class="w-full border border-gray-300 rounded-lg p-2 outline-none"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Pago Inicial ($)</label><input type="number" id="pago-inicial-pedido" min="0" step="0.01" value="0" class="w-full border border-gray-300 rounded-lg p-2 outline-none"></div>
+                </div>
+                <div class="flex justify-end space-x-3 pt-2 border-t border-gray-100"><button type="button" onclick="cerrarModal('modal-pedido')" class="px-4 py-2 text-gray-600">Cancelar</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">Crear</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-abonos" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-[75] no-print">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-start mb-4">
+                <div><h3 class="text-lg font-bold text-gray-800">💳 Historial de Abonos</h3><p id="abono-cliente-nombre" class="text-sm text-gray-500">Cliente</p></div>
+                <button onclick="cerrarModal('modal-abonos')" class="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4 flex justify-between items-center"><span class="font-medium text-gray-700">Saldo Pendiente:</span><span id="abono-saldo-pendiente" class="font-bold text-red-600 text-lg">$0.00</span></div>
+            <div class="flex-1 overflow-y-auto min-h-[150px] mb-4 border border-gray-200 rounded-lg bg-white p-2" id="lista-historial-abonos"></div>
+            <form class="mt-auto border-t border-gray-200 pt-4" onsubmit="guardarAbono(event)">
+                <input type="hidden" id="abono-pedido-id">
+                <label class="block text-sm font-bold text-gray-700 mb-2">Registrar Nuevo Abono</label>
+                <div class="flex gap-2">
+                    <div class="relative flex-1"><span class="absolute left-3 top-2 font-bold text-gray-500">$</span><input type="number" id="monto-abono" required min="0.01" step="0.01" placeholder="0.00" class="w-full border border-gray-300 rounded-lg p-2 pl-8 outline-none"></div>
+                    <button type="submit" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium">Abonar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-ticket" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center p-4 z-[90] no-print">
+        <div class="bg-gray-100 rounded-lg shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-gray-800 text-white p-3 flex justify-between items-center"><h3 class="font-bold">Vista Previa de Ticket</h3><button onclick="cerrarModal('modal-ticket')" class="text-gray-300">✕</button></div>
+            <div class="flex-1 overflow-y-auto p-4 flex justify-center items-start">
+                <div id="area-impresion-ticket" class="bg-white p-6 shadow-md w-full max-w-[300px] text-sm font-mono text-gray-900 border border-gray-200" style="min-height: 400px;"></div>
+            </div>
+            <div class="p-4 bg-white border-t border-gray-200 flex justify-center">
+                <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg">🖨️ Imprimir Ticket</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'punto-de-venta-3c290';
+        
+        // Configuración de Firebase integrada
+        let firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyC-Qu56m35KtD9DIq17Qk3lu1Ai4a02WJA",
+            authDomain: "punto-de-venta-3c290.firebaseapp.com",
+            projectId: "punto-de-venta-3c290",
+            storageBucket: "punto-de-venta-3c290.firebasestorage.app",
+            messagingSenderId: "239887899740",
+            appId: "1:239887899740:web:9622470a64e0dd6f249a99"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        let currentUserId = null;
+
+        let productos = [], pedidos = [], clientes = [], configNegocio = { nombre: "Mi Negocio", telefono: "", direccion: "" }, pedidoAbonoActual = null;
+
+        async function conectarNube() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+                else await signInAnonymously(auth);
+                currentUserId = auth.currentUser.uid;
+                iniciarSincronizacion();
+            } catch (e) {
+                currentUserId = "usuario-local-demo";
+                iniciarSincronizacion();
+            }
+        }
+
+        function iniciarSincronizacion() {
+            if (!currentUserId) return;
+            onSnapshot(doc(db, 'artifacts', appId, 'users', currentUserId, 'config', 'negocio'), (d) => { if(d.exists()) configNegocio = d.data(); aplicarConfig(); });
+            onSnapshot(collection(db, 'artifacts', appId, 'users', currentUserId, 'clientes'), (s) => { clientes = []; s.forEach(d => clientes.push({ ...d.data(), id: d.id })); renderClientes(); });
+            onSnapshot(collection(db, 'artifacts', appId, 'users', currentUserId, 'productos'), (s) => { productos = []; s.forEach(d => productos.push({ ...d.data(), id: d.id })); renderProductos(); });
+            onSnapshot(collection(db, 'artifacts', appId, 'users', currentUserId, 'pedidos'), (s) => {
+                pedidos = []; s.forEach(d => pedidos.push({ ...d.data(), id: d.id }));
+                pedidos.sort((a, b) => Number(b.id) - Number(a.id));
+                renderPedidos(); actualizarDashboard();
+            });
+        }
+
+        window.mostrarAlerta = (t, m) => { document.getElementById('alerta-titulo').textContent = t; document.getElementById('alerta-mensaje').textContent = m; document.getElementById('modal-alerta').classList.remove('hidden'); };
+        window.abrirModal = (id) => document.getElementById(id).classList.remove('hidden');
+        window.cerrarModal = (id) => document.getElementById(id).classList.add('hidden');
+        window.abrirModalSync = () => document.getElementById('modal-sync').classList.remove('hidden');
+
+        window.cambiarPestana = (p) => {
+            ['pedidos', 'clientes', 'productos'].forEach(x => {
+                document.getElementById(`sec-${x}`).classList.add('hidden');
+                document.getElementById(`tab-${x}`).classList.replace('text-blue-600', 'text-gray-500');
+                document.getElementById(`tab-${x}`).classList.remove('border-b-2', 'border-blue-600');
+            });
+            document.getElementById(`sec-${p}`).classList.remove('hidden');
+            document.getElementById(`tab-${p}`).classList.replace('text-gray-500', 'text-blue-600');
+            document.getElementById(`tab-${p}`).classList.add('border-b-2', 'border-blue-600');
+        };
+
+        function aplicarConfig() { document.getElementById('titulo-negocio').textContent = configNegocio.nombre || 'Mi Negocio'; }
+        window.abrirModalConfig = () => {
+            document.getElementById('config-nombre').value = configNegocio.nombre || '';
+            document.getElementById('config-telefono').value = configNegocio.telefono || '';
+            document.getElementById('config-direccion').value = configNegocio.direccion || '';
+            abrirModal('modal-configuracion');
+        };
+        window.guardarConfig = async (e) => {
+            e.preventDefault();
+            if(!currentUserId) return;
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'config', 'negocio'), {
+                nombre: document.getElementById('config-nombre').value.trim(),
+                telefono: document.getElementById('config-telefono').value.trim(),
+                direccion: document.getElementById('config-direccion').value.trim()
+            });
+            cerrarModal('modal-configuracion');
+        };
+
+        function actualizarDashboard() {
+            let cobrado = 0, porCobrar = 0, ganancia = 0;
+            pedidos.forEach(p => {
+                let pagado = (parseFloat(p.pagado) || 0) + (p.abonos ? p.abonos.reduce((s, a) => s + (parseFloat(a.monto) || 0), 0) : 0);
+                if (pagado > p.total) pagado = p.total;
+                cobrado += pagado;
+                porCobrar += (p.total - pagado);
+                ganancia += (p.total - ((p.producto.precioCosto || 0) * p.cantidad));
+            });
+            document.getElementById('dash-cobrado').textContent = '$' + cobrado.toFixed(2);
+            document.getElementById('dash-por-cobrar').textContent = '$' + porCobrar.toFixed(2);
+            document.getElementById('dash-ganancia').textContent = '$' + ganancia.toFixed(2);
+        }
+
+        window.guardarCliente = async (e) => {
+            e.preventDefault();
+            if(!currentUserId) return;
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'clientes', Date.now().toString()), {
+                nombre: document.getElementById('nombre-cliente').value.trim(),
+                telefono: document.getElementById('telefono-cliente').value.trim(),
+                direccion: document.getElementById('direccion-cliente').value.trim()
+            });
+            cerrarModal('modal-cliente');
+            e.target.reset();
+        };
+
+        function renderClientes() {
+            const cont = document.getElementById('lista-clientes');
+            cont.innerHTML = clientes.length === 0 ? `<div class="col-span-2 p-8 text-center text-gray-500 bg-white rounded-xl border">Aún no hay clientes.</div>` : '';
+            clientes.forEach(c => {
+                const pList = pedidos.filter(p => p.clienteId === c.id);
+                cont.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border relative group hover:border-blue-300 transition">
+                        <button onclick="eliminarCliente('${c.id}')" class="absolute top-3 right-3 text-red-300 hover:text-red-600 hidden group-hover:block">🗑️</button>
+                        <h4 class="font-bold text-gray-800 text-lg mb-2">👤 ${c.nombre}</h4>
+                        <div class="text-sm text-gray-600 space-y-1 ml-6">
+                            ${c.telefono ? `<p>📞 ${c.telefono}</p>` : ''}
+                            ${c.direccion ? `<p>📍 ${c.direccion}</p>` : ''}
+                            <div class="mt-3 pt-3 border-t flex gap-2">
+                                <span class="bg-blue-50 text-blue-700 text-xs font-semibold px-2 py-1 rounded">📦 ${pList.length} pedido(s)</span>
+                                <span class="bg-green-50 text-green-700 text-xs font-semibold px-2 py-1 rounded">💰 $${pList.reduce((s,p)=>s+p.total,0).toFixed(2)} comprados</span>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        }
+        window.eliminarCliente = async (id) => {
+            if(pedidos.some(p => p.clienteId === id)) return mostrarAlerta("Error", "El cliente tiene pedidos registrados.");
+            if(currentUserId) await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'clientes', id));
+        };
+
+        window.guardarProducto = async (e) => {
+            e.preventDefault();
+            if(!currentUserId) return;
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'productos', Date.now().toString()), {
+                nombre: document.getElementById('nombre-prod').value.trim(),
+                precioCosto: parseFloat(document.getElementById('precio-costo-prod').value),
+                precioVenta: parseFloat(document.getElementById('precio-venta-prod').value),
+                descripcion: document.getElementById('desc-prod').value.trim()
+            });
+            cerrarModal('modal-producto');
+            e.target.reset();
+        };
+
+        function renderProductos() {
+            const cont = document.getElementById('lista-productos');
+            cont.innerHTML = productos.length === 0 ? `<div class="col-span-3 p-8 text-center text-gray-500 bg-white rounded-xl border">Aún no hay productos.</div>` : '';
+            productos.forEach(pr => {
+                const costo = pr.precioCosto || 0, venta = pr.precioVenta || 0;
+                cont.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border relative group hover:shadow-md transition">
+                        <button onclick="eliminarProducto('${pr.id}')" class="absolute top-3 right-3 text-red-300 hover:text-red-600 hidden group-hover:block">🗑️</button>
+                        <h4 class="font-bold text-gray-800 text-lg line-clamp-1 pr-6">${pr.nombre}</h4>
+                        <div class="my-2 flex justify-between items-end">
+                            <div><p class="text-[10px] text-gray-400 font-bold uppercase">Catálogo Venta</p><p class="text-2xl font-black text-blue-600">$${venta.toFixed(2)}</p></div>
+                            <div class="text-right"><p class="text-xs text-gray-400">Costo: $${costo.toFixed(2)}</p><p class="text-xs font-bold text-green-600">Margen: $${(venta-costo).toFixed(2)}</p></div>
+                        </div>
+                        <p class="text-sm text-gray-500 line-clamp-2 mt-3 border-t pt-2">${pr.descripcion || 'Sin descripción'}</p>
+                    </div>`;
+            });
+        }
+        window.eliminarProducto = async (id) => {
+            if(pedidos.some(p => p.producto.id === id)) return mostrarAlerta("Error", "El producto está en uso.");
+            if(currentUserId) await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'productos', id));
+        };
+
+        window.abrirModalPedido = () => {
+            if (clientes.length === 0) return mostrarAlerta("Atención", "Registra un cliente primero.");
+            if (productos.length === 0) return mostrarAlerta("Atención", "Registra un producto primero.");
+            const selC = document.getElementById('select-cliente-pedido');
+            selC.innerHTML = clientes.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+            const selP = document.getElementById('producto-pedido');
+            selP.innerHTML = productos.map(p => `<option value="${p.id}">${p.nombre} - $${(p.precioVenta||0).toFixed(2)}</option>`).join('');
+            document.getElementById('cantidad-pedido').value = 1;
+            document.getElementById('pago-inicial-pedido').value = 0;
+            actualizarPrecioVenta();
+            abrirModal('modal-pedido');
+        };
+
+        window.actualizarPrecioVenta = () => {
+            const pr = productos.find(p => p.id === document.getElementById('producto-pedido').value);
+            if (pr) {
+                document.getElementById('precio-venta-pedido').value = (pr.precioVenta || 0).toFixed(2);
+                document.getElementById('precio-costo-display').textContent = '$' + (pr.precioCosto || 0).toFixed(2);
+                document.getElementById('precio-venta-normal-display').textContent = '$' + (pr.precioVenta || 0).toFixed(2);
+            }
+        };
+
+        window.guardarPedido = async (e) => {
+            e.preventDefault();
+            if(!currentUserId) return;
+            const cId = document.getElementById('select-cliente-pedido').value;
+            const pId = document.getElementById('producto-pedido').value;
+            const cant = parseInt(document.getElementById('cantidad-pedido').value);
+            const pVenta = parseFloat(document.getElementById('precio-venta-pedido').value);
+            let pInit = parseFloat(document.getElementById('pago-inicial-pedido').value) || 0;
+            const cl = clientes.find(c => c.id === cId), pr = productos.find(p => p.id === pId);
+            const total = pVenta * cant;
+            if(pInit > total) pInit = total;
+
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'pedidos', Date.now().toString()), {
+                clienteId: cl.id, clienteNombre: cl.nombre, producto: pr,
+                precioVenta: pVenta, cantidad: cant, total: total, pagado: pInit,
+                fecha: new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                abonos: []
+            });
+            cerrarModal('modal-pedido');
+        };
+
+        function renderPedidos() {
+            const cont = document.getElementById('lista-pedidos');
+            cont.innerHTML = pedidos.length === 0 ? `<div class="p-8 text-center text-gray-500 bg-white rounded-xl border">Aún no hay pedidos.</div>` : '';
+            pedidos.forEach(p => {
+                let pagado = (parseFloat(p.pagado) || 0) + (p.abonos ? p.abonos.reduce((s, a) => s + parseFloat(a.monto), 0) : 0);
+                const saldo = p.total - pagado, pagadoTotal = saldo <= 0;
+                cont.innerHTML += `
+                    <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 ${pagadoTotal ? 'border-l-green-500' : 'border-l-orange-500'} border-y border-r border-gray-200">
+                        <div class="flex justify-between items-start mb-2">
+                            <div><h4 class="font-bold text-gray-800">👤 ${p.clienteNombre}</h4><p class="text-xs text-gray-400">${p.fecha}</p></div>
+                            <div class="flex gap-2">
+                                <button onclick="verTicket('${p.id}')" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium border">🧾 Ticket</button>
+                                <button onclick="eliminarPedido('${p.id}')" class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded text-sm font-medium border border-red-200">Borrar</button>
+                            </div>
+                        </div>
+                        <div class="my-3 py-3 border-y flex justify-between items-center bg-gray-50 px-3 rounded-lg">
+                            <div><p class="text-gray-800 font-medium">📦 ${p.cantidad}x ${p.producto.nombre}</p><p class="text-xs text-gray-500">Precio unitario: $${p.precioVenta.toFixed(2)}</p></div>
+                            <p class="font-black text-lg">$${p.total.toFixed(2)}</p>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1 mr-4">
+                                <div class="flex justify-between text-sm mb-1"><span>Pagado: $${pagado.toFixed(2)}</span><span class="font-bold ${pagadoTotal ? 'text-green-600' : 'text-red-500'}">Restante: $${Math.max(0, saldo).toFixed(2)}</span></div>
+                                <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-${pagadoTotal ? 'green' : 'blue'}-500 h-2 rounded-full" style="width: ${Math.min((pagado/p.total)*100, 100)}%"></div></div>
+                            </div>
+                            ${!pagadoTotal ? `<button onclick="abrirAbonos('${p.id}')" class="px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm font-bold shadow-sm">+ Abono</button>` : `<span class="text-green-600 font-bold text-sm px-3 py-1 bg-green-50 rounded-lg border">✅ Pagado</span>`}
+                        </div>
+                    </div>`;
+            });
+        }
+        window.eliminarPedido = async (id) => { if(currentUserId) await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'pedidos', id)); };
+
+        window.abrirAbonos = (id) => {
+            pedidoAbonoActual = pedidos.find(p => p.id === id);
+            if (!pedidoAbonoActual) return;
+            document.getElementById('abono-pedido-id').value = id;
+            document.getElementById('abono-cliente-nombre').textContent = `Pedido de: ${pedidoAbonoActual.clienteNombre}`;
+            actualizarHistorialAbonosModal();
+            document.getElementById('monto-abono').value = '';
+            abrirModal('modal-abonos');
+        };
+
+        function actualizarHistorialAbonosModal() {
+            let pagado = parseFloat(pedidoAbonoActual.pagado) || 0;
+            const cont = document.getElementById('lista-historial-abonos');
+            cont.innerHTML = pagado > 0 ? `<div class="flex justify-between p-2 border-b text-sm"><span class="text-gray-500">Pago Inicial<br><span class="text-xs">${pedidoAbonoActual.fecha.split(',')[0]}</span></span><span class="font-bold">$${pagado.toFixed(2)}</span></div>` : '';
+            if (pedidoAbonoActual.abonos) {
+                pedidoAbonoActual.abonos.forEach(a => {
+                    pagado += parseFloat(a.monto);
+                    cont.innerHTML += `
+                        <div class="flex justify-between items-center p-2 border-b text-sm group hover:bg-gray-50">
+                            <div><span>Abono</span><br><span class="text-xs text-gray-400">${a.fecha}</span></div>
+                            <div class="flex items-center gap-3"><span class="font-bold text-green-600">+$${parseFloat(a.monto).toFixed(2)}</span><button onclick="eliminarAbono('${a.id}')" class="text-red-400 opacity-0 group-hover:opacity-100">🗑️</button></div>
+                        </div>`;
+                });
+            }
+            const saldo = pedidoAbonoActual.total - pagado;
+            document.getElementById('abono-saldo-pendiente').textContent = '$' + Math.max(0, saldo).toFixed(2);
+            document.getElementById('monto-abono').max = saldo;
+        }
+
+        window.guardarAbono = async (e) => {
+            e.preventDefault();
+            if(!currentUserId || !pedidoAbonoActual) return;
+            const monto = parseFloat(document.getElementById('monto-abono').value);
+            const abonos = [...(pedidoAbonoActual.abonos || []), { id: Date.now().toString(), monto, fecha: new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }];
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'pedidos', pedidoAbonoActual.id), { ...pedidoAbonoActual, abonos });
+            pedidoAbonoActual.abonos = abonos;
+            actualizarHistorialAbonosModal();
+            document.getElementById('monto-abono').value = '';
+        };
+
+        window.eliminarAbono = async (aId) => {
+            if(!currentUserId || !pedidoAbonoActual) return;
+            const abonos = pedidoAbonoActual.abonos.filter(a => a.id !== aId);
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'pedidos', pedidoAbonoActual.id), { ...pedidoAbonoActual, abonos });
+            pedidoAbonoActual.abonos = abonos;
+            actualizarHistorialAbonosModal();
+        };
+
+        window.verTicket = (id) => {
+            const p = pedidos.find(x => x.id === id);
+            if (!p) return;
+            let pagado = parseFloat(p.pagado) || 0, htmlAbonos = p.pagado > 0 ? `<div class="flex justify-between"><span class="text-xs">Pago Inicial:</span><span>$${p.pagado.toFixed(2)}</span></div>` : '';
+            if (p.abonos) p.abonos.forEach(a => { pagado += parseFloat(a.monto); htmlAbonos += `<div class="flex justify-between text-gray-600"><span class="text-xs">Abono (${a.fecha.split(',')[0]}):</span><span>$${parseFloat(a.monto).toFixed(2)}</span></div>`; });
+            const saldo = p.total - pagado, normal = p.producto.precioVenta || 0, ahorro = (normal - p.precioVenta) * p.cantidad;
+
+            document.getElementById('area-impresion-ticket').innerHTML = `
+                <div class="text-center mb-4">
+                    <h2 class="text-xl font-bold uppercase">${configNegocio.nombre || 'MI NEGOCIO'}</h2>
+                    ${configNegocio.direccion ? `<p class="text-xs text-gray-600 mt-1">${configNegocio.direccion}</p>` : ''}
+                    ${configNegocio.telefono ? `<p class="text-xs text-gray-600">Tel: ${configNegocio.telefono}</p>` : ''}
+                    <div class="border-b my-2"></div><p class="text-xs font-bold uppercase">Ticket de Compra</p><p class="text-xs">${p.fecha}</p>
+                </div>
+                <div class="border-t border-b border-dashed py-2 mb-3"><p class="text-xs font-bold">Cliente: <span class="font-normal text-sm block">${p.clienteNombre}</span></p></div>
+                <div class="mb-3">
+                    <div class="flex justify-between border-b pb-1 mb-2 font-bold text-xs uppercase"><span>Cant/Prod</span><span>Importe</span></div>
+                    <div class="flex justify-between text-sm"><span>${p.cantidad}x ${p.producto.nombre}<br><span class="text-xs text-gray-400">($${p.precioVenta.toFixed(2)} c/u)</span></span><span>$${p.total.toFixed(2)}</span></div>
+                </div>
+                ${ahorro > 0 ? `<div class="bg-gray-100 p-1 text-center mb-3 border border-dashed rounded"><p class="text-xs font-bold">¡Ahorraste $${ahorro.toFixed(2)}!</p></div>` : ''}
+                <div class="border-t border-dashed pt-2 space-y-1">
+                    <div class="flex justify-between font-bold text-base"><span>TOTAL:</span><span>$${p.total.toFixed(2)}</span></div>
+                    <div class="mt-2 pt-2 border-t">${htmlAbonos}
+                        <div class="flex justify-between font-bold text-sm mt-1 pt-1 border-t"><span>Pagado:</span><span>$${pagado.toFixed(2)}</span></div>
+                        <div class="flex justify-between font-bold text-sm mt-1 text-red-600"><span>Restante:</span><span>$${Math.max(0, saldo).toFixed(2)}</span></div>
+                    </div>
+                </div>
+                <div class="text-center mt-6 pt-4 border-t"><p class="text-sm font-bold">${saldo <= 0 ? '¡PAGADO!' : 'PENDIENTE'}</p><p class="text-xs text-gray-400 mt-1">¡Gracias por su compra!</p></div>`;
+            abrirModal('modal-ticket');
+        };
+
+        conectarNube();
+    </script>
+</body>
+</html>
