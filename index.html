@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Pedidos</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        .modal-backdrop { background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); }
         @media print {
             body * { visibility: hidden; }
             #printable-ticket, #printable-ticket * { visibility: visible; }
@@ -16,361 +18,508 @@
         }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen antialiased">
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
 
-    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
+    <!-- Banner de Modo Desarrollador / Sandbox -->
+    <div id="sandbox-banner" class="hidden bg-amber-500 text-slate-950 font-bold px-4 py-2 text-xs flex justify-between items-center shadow-md sticky top-0 z-50">
+        <div class="flex items-center gap-2">
+            <span class="text-base">🧪</span>
+            <span>MODO DESARROLLADOR ACTIVO: Trabajas en un entorno aislado (Los cambios NO afectarán Firebase)</span>
+        </div>
+        <button onclick="window.exitSandboxMode()" class="bg-slate-900 text-white px-3 py-1 rounded-lg text-xs hover:bg-black transition">
+            ✕ Salir de Pruebas
+        </button>
+    </div>
 
-    <div id="lock-screen" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
-        <form id="lock-form" class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center space-y-6">
-            <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
+    <!-- Toast Notification -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Pantalla de Bloqueo por PIN -->
+    <div id="pin-screen" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
+        <form onsubmit="window.unlockApp(event)" class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center space-y-6">
+            <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-3xl shadow-inner">
                 🔑
             </div>
             <div>
-                <h2 class="text-xl font-black text-gray-800 tracking-tight">Entrar con Llave</h2>
-                <p class="text-xs text-gray-500 mt-1">Ingresa tu PIN de seguridad para continuar</p>
+                <h2 class="text-2xl font-black text-slate-800 tracking-tight">Acceso al Sistema</h2>
+                <p class="text-xs text-slate-500 mt-1">Ingresa tu llave de seguridad para continuar</p>
             </div>
             <div>
-                <input 
-                    type="password" 
-                    id="pin-input" 
-                    autofocus 
-                    class="w-full text-center text-3xl tracking-widest py-3 border-2 rounded-2xl outline-none font-mono border-gray-200 focus:border-indigo-600 transition" 
-                    placeholder="••••" 
-                    maxlength="8"
-                />
-                <p id="pin-error" class="text-xs text-red-500 mt-2 font-semibold hidden">Llave incorrecta. Intenta de nuevo.</p>
+                <input type="password" id="pin-input" autofocus class="w-full text-center text-3xl tracking-widest py-3 border-2 border-slate-200 rounded-2xl outline-none font-mono focus:border-indigo-600 focus:bg-indigo-50/20 transition" placeholder="••••">
+                <p id="pin-error-msg" class="hidden text-xs text-red-500 font-bold mt-2">⚠️ Llave incorrecta. Intenta de nuevo.</p>
             </div>
-            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition text-sm">
-                Ingresar al Sistema
+            <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition text-sm">
+                Ingresar al Negocio
             </button>
         </form>
     </div>
 
+    <!-- Main Application UI -->
     <div id="app-container" class="hidden min-h-screen flex flex-col md:flex-row">
         
+        <!-- Sidebar Navigation (Desktop) -->
+        <aside class="hidden md:flex w-64 bg-slate-900 text-white flex-col justify-between p-5 shrink-0 shadow-xl sticky top-0 h-screen">
+            <div class="space-y-6">
+                <div class="px-2">
+                    <h1 id="sidebar-business-name" class="text-xl font-black text-indigo-400 tracking-tight truncate">Mi Negocio</h1>
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-0.5">Gestor de Pedidos v2.5</p>
+                </div>
+                
+                <nav class="space-y-1.5">
+                    <button onclick="window.switchTab('dashboard')" id="nav-btn-dashboard" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+                        📊 Panel Financiero
+                    </button>
+                    <button onclick="window.switchTab('orders')" id="nav-btn-orders" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+                        📦 Pedidos
+                    </button>
+                    <button onclick="window.switchTab('customers')" id="nav-btn-customers" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+                        👥 Clientes
+                    </button>
+                    <button onclick="window.switchTab('products')" id="nav-btn-products" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+                        🏷️ Productos
+                    </button>
+                    <button onclick="window.switchTab('logs')" id="nav-btn-logs" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+                        📜 Historial / Bitácora
+                    </button>
+                    <button onclick="window.switchTab('settings')" id="nav-btn-settings" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+                        ⚙️ Configuración
+                    </button>
+                </nav>
+            </div>
+
+            <button onclick="window.lockApp()" class="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white font-bold py-3 rounded-xl text-xs transition shadow-sm">
+                🔒 Bloquear Sistema
+            </button>
+        </aside>
+
         <!-- Mobile Header -->
-        <header class="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-20 shadow-md">
-            <h1 id="header-business-name" class="text-lg font-bold truncate">Mi Negocio</h1>
+        <header class="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-30 shadow-md">
+            <div>
+                <h1 id="mobile-business-name" class="text-base font-black text-indigo-400 truncate">Mi Negocio</h1>
+                <p class="text-[9px] text-slate-400 font-bold uppercase">Gestor de Pedidos</p>
+            </div>
             <div class="flex items-center gap-2">
-                <button id="btn-lock-mobile" class="p-2 text-slate-400 hover:text-white rounded-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                </button>
-                <button id="btn-toggle-menu" class="p-2 text-slate-400 hover:text-white rounded-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                </button>
+                <button onclick="window.lockApp()" class="p-2 text-slate-400 hover:text-white">🔒</button>
+                <button onclick="window.toggleMobileMenu()" class="p-2 text-slate-400 hover:text-white text-xl">☰</button>
             </div>
         </header>
 
-        <!-- Sidebar Desktop & Mobile -->
-        <nav id="sidebar" class="hidden md:flex flex-col justify-between w-full md:w-64 bg-slate-900 text-white fixed md:sticky top-0 h-screen z-30 shrink-0 border-r border-slate-800">
-            <div>
-                <div class="p-6">
-                    <h1 id="sidebar-business-name" class="text-2xl font-black text-indigo-400 tracking-tight truncate">Mi Negocio</h1>
-                    <p class="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider font-bold">Gestor de Pedidos</p>
+        <!-- Mobile Drawer Menu -->
+        <div id="mobile-menu" class="hidden md:hidden fixed inset-0 bg-slate-900/95 z-40 p-6 flex flex-col justify-between">
+            <div class="space-y-6">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <h2 class="text-lg font-bold text-white">Menú de Navegación</h2>
+                    <button onclick="window.toggleMobileMenu()" class="text-slate-400 text-2xl">✕</button>
                 </div>
-                <div class="px-3 space-y-1">
-                    <button data-tab="dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-colors bg-indigo-600 text-white shadow-md shadow-indigo-900">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                        Panel
-                    </button>
-                    <button data-tab="orders" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-colors text-slate-400 hover:bg-slate-800 hover:text-white">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                        Pedidos
-                    </button>
-                    <button data-tab="customers" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-colors text-slate-400 hover:bg-slate-800 hover:text-white">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                        Clientes
-                    </button>
-                    <button data-tab="products" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-colors text-slate-400 hover:bg-slate-800 hover:text-white">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                        Productos
-                    </button>
-                    <button data-tab="settings" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-colors text-slate-400 hover:bg-slate-800 hover:text-white">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        Configuración
-                    </button>
+                <div class="space-y-2">
+                    <button onclick="window.switchTab('dashboard'); window.toggleMobileMenu();" class="w-full text-left py-3 text-slate-200 font-bold text-sm border-b border-slate-800">📊 Panel Financiero</button>
+                    <button onclick="window.switchTab('orders'); window.toggleMobileMenu();" class="w-full text-left py-3 text-slate-200 font-bold text-sm border-b border-slate-800">📦 Pedidos</button>
+                    <button onclick="window.switchTab('customers'); window.toggleMobileMenu();" class="w-full text-left py-3 text-slate-200 font-bold text-sm border-b border-slate-800">👥 Clientes</button>
+                    <button onclick="window.switchTab('products'); window.toggleMobileMenu();" class="w-full text-left py-3 text-slate-200 font-bold text-sm border-b border-slate-800">🏷️ Productos</button>
+                    <button onclick="window.switchTab('logs'); window.toggleMobileMenu();" class="w-full text-left py-3 text-slate-200 font-bold text-sm border-b border-slate-800">📜 Historial / Bitácora</button>
+                    <button onclick="window.switchTab('settings'); window.toggleMobileMenu();" class="w-full text-left py-3 text-slate-200 font-bold text-sm border-b border-slate-800">⚙️ Configuración</button>
                 </div>
             </div>
-            <div class="p-4 border-t border-slate-800">
-                <button id="btn-lock-desktop" class="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white font-bold py-2.5 rounded-xl text-xs transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    Bloquear Sistema
-                </button>
-            </div>
-        </nav>
+            <button onclick="window.lockApp()" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl text-sm">🔒 Bloquear Sistema</button>
+        </div>
 
-        <!-- Main Content Area -->
-        <main class="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto md:h-screen md:overflow-y-auto">
+        <!-- Content Area -->
+        <main class="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-6 overflow-y-auto">
             
-            <section id="view-dashboard" class="tab-view space-y-6">
-                <h2 class="text-2xl font-black text-gray-800 tracking-tight">Resumen Financiero</h2>
+            <!-- Tab: Dashboard -->
+            <section id="tab-dashboard" class="tab-page space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-800 tracking-tight">Resumen Financiero</h2>
+                        <p class="text-xs text-slate-500">Métricas clave e ingresos del negocio en tiempo real</p>
+                    </div>
+                    <div class="flex bg-slate-200 p-1 rounded-xl text-xs font-bold gap-1 self-start sm:self-auto">
+                        <button onclick="window.setDashFilter('today')" id="dash-filter-today" class="dash-filter-btn px-3 py-1.5 rounded-lg transition bg-white text-indigo-600 shadow-xs">Hoy</button>
+                        <button onclick="window.setDashFilter('week')" id="dash-filter-week" class="dash-filter-btn px-3 py-1.5 rounded-lg transition text-slate-600">Esta Semana</button>
+                        <button onclick="window.setDashFilter('month')" id="dash-filter-month" class="dash-filter-btn px-3 py-1.5 rounded-lg transition text-slate-600">Este Mes</button>
+                        <button onclick="window.setDashFilter('all')" id="dash-filter-all" class="dash-filter-btn px-3 py-1.5 rounded-lg transition text-slate-600">Todo</button>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200">
-                        <h3 class="text-sm font-medium opacity-90 uppercase tracking-wider">Total Cobrado</h3>
-                        <p id="dash-cobrado" class="text-3xl font-black mt-2">$0.00</p>
-                        <p class="text-xs opacity-80 mt-1">Suma de pagos iniciales y abonos</p>
+                    <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200/50">
+                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Total Cobrado</h3>
+                        <p id="dash-total-cobrado" class="text-3xl font-black mt-2">$0.00</p>
+                        <p class="text-[11px] opacity-80 mt-1">Suma acumulada de abonos y liquidaciones</p>
                     </div>
-                    <div class="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg shadow-amber-200">
-                        <h3 class="text-sm font-medium opacity-90 uppercase tracking-wider">Por Cobrar</h3>
+                    <div class="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg shadow-amber-200/50">
+                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Por Cobrar</h3>
                         <p id="dash-por-cobrar" class="text-3xl font-black mt-2">$0.00</p>
-                        <p class="text-xs opacity-80 mt-1">Saldo pendiente acumulado</p>
+                        <p class="text-[11px] opacity-80 mt-1">Saldos pendientes en pedidos activos</p>
                     </div>
-                    <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200">
-                        <h3 class="text-sm font-medium opacity-90 uppercase tracking-wider">Ganancia Neta</h3>
-                        <p id="dash-ganancia" class="text-3xl font-black mt-2">$0.00</p>
-                        <p class="text-xs opacity-80 mt-1">Precio venta final menos costo de Catalogo</p>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4">Actividad Reciente</h3>
-                    <div id="dash-recent-orders" class="space-y-3">
-                        <p class="text-gray-400 text-sm">No hay pedidos registrados.</p>
+                    <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200/50">
+                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Ganancia Neta</h3>
+                        <p id="dash-ganancia-neta" class="text-3xl font-black mt-2">$0.00</p>
+                        <p class="text-[11px] opacity-80 mt-1">Precio final cobrado menos costo de proveedor</p>
                     </div>
                 </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+                    <h3 class="text-lg font-bold text-slate-800">Últimos Pedidos Registrados</h3>
+                    <div id="dash-recent-orders" class="space-y-3 divide-y divide-slate-100"></div>
+                </div>
             </section>
 
-            <section id="view-orders" class="tab-view hidden space-y-6">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-2xl font-black text-gray-800 tracking-tight">Gestión de Pedidos</h2>
-                    <button id="btn-open-order-modal" class="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-indigo-700 shadow-md shadow-indigo-100 transition text-sm">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                        + Agregar Producto / Pedido
+            <!-- Tab: Orders -->
+            <section id="tab-orders" class="tab-page hidden space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-800 tracking-tight">Gestión de Pedidos</h2>
+                        <p class="text-xs text-slate-500">Ventas, abonos parciales y recibos</p>
+                    </div>
+                    <button onclick="window.openOrderModal()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-md shadow-indigo-200 transition text-xs">
+                        ➕ Levantar Pedido / Producto
                     </button>
                 </div>
-                <div id="orders-list" class="grid gap-4">
-                    <p class="text-gray-400 text-sm">Cargando pedidos...</p>
+
+                <!-- Filters & Search Bar -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <div class="flex bg-slate-100 p-1 rounded-xl text-xs font-bold w-full md:w-auto">
+                        <button onclick="window.setOrderStatusFilter('active')" id="ord-filter-active" class="ord-filter-btn flex-1 md:flex-none px-4 py-2 rounded-lg transition bg-white text-indigo-600 shadow-xs">Activos</button>
+                        <button onclick="window.setOrderStatusFilter('pending')" id="ord-filter-pending" class="ord-filter-btn flex-1 md:flex-none px-4 py-2 rounded-lg transition text-slate-600">Pendientes</button>
+                        <button onclick="window.setOrderStatusFilter('paid')" id="ord-filter-paid" class="ord-filter-btn flex-1 md:flex-none px-4 py-2 rounded-lg transition text-slate-600">Pagados</button>
+                        <button onclick="window.setOrderStatusFilter('archived')" id="ord-filter-archived" class="ord-filter-btn flex-1 md:flex-none px-4 py-2 rounded-lg transition text-slate-600">Archivados</button>
+                    </div>
+                    <div class="w-full md:w-72">
+                        <input type="text" id="ord-search-input" oninput="window.handleOrderSearch(this.value)" placeholder="🔍 Buscar por cliente o producto..." class="w-full p-2.5 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                    </div>
                 </div>
+
+                <div id="orders-list-container" class="grid gap-4"></div>
             </section>
 
-            <section id="view-customers" class="tab-view hidden space-y-6">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-2xl font-black text-gray-800 tracking-tight">Directorio de Clientes</h2>
-                    <button id="btn-open-customer-modal" class="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-indigo-700 shadow-md shadow-indigo-100 transition text-sm">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        Nuevo Cliente
+            <!-- Tab: Customers -->
+            <section id="tab-customers" class="tab-page hidden space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-800 tracking-tight">Directorio de Clientes</h2>
+                        <p class="text-xs text-slate-500">Frecuencia de compra y acumulado histórico</p>
+                    </div>
+                    <button onclick="window.openCustomerModal()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-md shadow-indigo-200 transition text-xs">
+                        ➕ Nuevo Cliente
                     </button>
                 </div>
-                <div id="customers-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    <p class="text-gray-400 text-sm">Cargando clientes...</p>
+
+                <div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm max-w-md">
+                    <input type="text" oninput="window.handleCustomerSearch(this.value)" placeholder="🔍 Buscar cliente por nombre o teléfono..." class="w-full p-2.5 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
                 </div>
+
+                <div id="customers-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
             </section>
 
-            <section id="view-products" class="tab-view hidden space-y-6">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-2xl font-black text-gray-800 tracking-tight">Catálogo de Productos</h2>
-                    <button id="btn-open-product-modal" class="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-indigo-700 shadow-md shadow-indigo-100 transition text-sm">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        Nuevo Producto
+            <!-- Tab: Products -->
+            <section id="tab-products" class="tab-page hidden space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-800 tracking-tight">Catálogo de Productos</h2>
+                        <p class="text-xs text-slate-500">Precios de costo, venta y ofertas temporales</p>
+                    </div>
+                    <button onclick="window.openProductModal()" class="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-md shadow-indigo-200 transition text-xs">
+                        ➕ Nuevo Producto
                     </button>
                 </div>
-                <div id="products-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    <p class="text-gray-400 text-sm">Cargando productos...</p>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <div class="w-full md:w-1/3">
+                        <select id="prod-category-select" onchange="window.handleProductCategoryFilter(this.value)" class="w-full p-2.5 border rounded-xl text-xs bg-slate-50 outline-none">
+                            <option value="">Todas las categorías...</option>
+                        </select>
+                    </div>
+                    <div class="w-full md:w-2/3">
+                        <input type="text" oninput="window.handleProductSearch(this.value)" placeholder="🔍 Buscar producto por nombre o descripción..." class="w-full p-2.5 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+
+                <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+            </section>
+
+            <!-- Tab: Logs -->
+            <section id="tab-logs" class="tab-page hidden space-y-6">
+                <div>
+                    <h2 class="text-2xl font-black text-slate-800 tracking-tight">Historial de Cambios y Bitácora</h2>
+                    <p class="text-xs text-slate-500">Registro detallado de acciones realizadas en el sistema</p>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <div class="w-full md:w-1/3">
+                        <select onchange="window.handleLogCategoryFilter(this.value)" class="w-full p-2.5 border rounded-xl text-xs bg-slate-50 outline-none">
+                            <option value="">Todas las categorías de actividad...</option>
+                            <option value="pedido">Pedidos y Ventas</option>
+                            <option value="abono">Abonos y Pagos</option>
+                            <option value="producto">Productos y Promociones</option>
+                            <option value="cliente">Clientes</option>
+                            <option value="configuracion">Configuración y Sistema</option>
+                        </select>
+                    </div>
+                    <div class="w-full md:w-2/3">
+                        <input type="text" oninput="window.handleLogSearch(this.value)" placeholder="🔍 Buscar evento por título o detalles..." class="w-full p-2.5 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <div id="logs-timeline" class="space-y-4"></div>
                 </div>
             </section>
 
-            <section id="view-settings" class="tab-view hidden max-w-xl mx-auto space-y-6">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h2 class="text-2xl font-black text-gray-800 mb-2 tracking-tight">Configuración del Negocio</h2>
-                    <p class="text-gray-500 mb-6 text-xs">Información que aparecerá en la parte superior de los recibos impresos.</p>
-                    
-                    <form id="settings-form" class="space-y-4">
+            <!-- Tab: Settings -->
+            <section id="tab-settings" class="tab-page hidden max-w-xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                    <div>
+                        <h2 class="text-2xl font-black text-slate-800 tracking-tight">Configuración del Negocio</h2>
+                        <p class="text-xs text-slate-500 mt-1">Información impresa en tickets y seguridad de acceso</p>
+                    </div>
+
+                    <form onsubmit="window.saveSettings(event)" class="space-y-4 pt-2">
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 uppercase">Nombre del Negocio</label>
-                            <input required type="text" id="cfg-name" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                            <label class="block text-xs font-bold text-slate-700 uppercase">Nombre del Negocio</label>
+                            <input type="text" id="cfg-name" required class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 uppercase">Teléfono</label>
-                            <input type="tel" id="cfg-phone" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                            <label class="block text-xs font-bold text-slate-700 uppercase">Teléfono de Contacto</label>
+                            <input type="tel" id="cfg-phone" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 uppercase">Dirección</label>
-                            <textarea id="cfg-address" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" rows="2"></textarea>
+                            <label class="block text-xs font-bold text-slate-700 uppercase">Dirección / Sucursal</label>
+                            <textarea id="cfg-address" rows="2" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
                         </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 uppercase">Llave / PIN de Seguridad</label>
-                                <input type="password" required id="cfg-pin" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="1234" />
+                                <label class="block text-xs font-bold text-slate-700 uppercase">PIN de Seguridad</label>
+                                <input type="password" id="cfg-pin" required class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500" placeholder="••••">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-gray-700 uppercase">Confirmar Llave / PIN</label>
-                                <input type="password" required id="cfg-confirm-pin" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="1234" />
+                                <label class="block text-xs font-bold text-slate-700 uppercase">Confirmar PIN</label>
+                                <input type="password" id="cfg-confirm-pin" required class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500" placeholder="••••">
                             </div>
                         </div>
-                        <p id="pin-mismatch-msg" class="text-xs text-red-500 font-semibold hidden">⚠️ Las llaves / PIN no coinciden.</p>
 
-                        <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">Guardar Configuración</button>
+                        <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition text-xs">
+                            💾 Guardar Configuración
+                        </button>
                     </form>
                 </div>
 
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                <!-- Backup & Restore Section -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
                     <div>
-                        <h3 class="font-bold text-base text-gray-800">📦 Copia de Seguridad y Restauración (JSON)</h3>
-                        <p class="text-xs text-gray-500 mt-1">Guarda un respaldo local de todos tus datos o sube un archivo JSON para sincronizar en automático con Firebase.</p>
+                        <h3 class="font-bold text-base text-slate-800">📦 Copia de Seguridad y Restauración (JSON)</h3>
+                        <p class="text-xs text-slate-500 mt-1">Guarda un respaldo local de todos tus datos (incluyendo bitácora) o sube un archivo JSON para sincronizar con Firebase.</p>
                     </div>
                     <div class="flex flex-col sm:flex-row gap-3 pt-2">
-                        <button type="button" id="btn-export-json" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl shadow-md transition text-xs flex items-center justify-center gap-2">
+                        <button onclick="window.exportDataJSON()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl shadow-md transition text-xs flex items-center justify-center gap-2">
                             📥 Descargar JSON
                         </button>
                         <label class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-md transition text-xs flex items-center justify-center gap-2 cursor-pointer text-center">
                             📤 Cargar JSON a Firebase
-                            <input type="file" id="json-file-input" accept=".json" class="hidden" />
+                            <input type="file" accept=".json" class="hidden" onchange="window.handleImportJSONFile(event)">
                         </label>
                     </div>
                 </div>
-            </section>
 
+                <!-- Developer Sandbox Mode -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-amber-200 bg-amber-50/30 space-y-3">
+                    <div>
+                        <h3 class="font-bold text-base text-amber-900">🛠️ Modo Desarrollador / Entorno Aislado</h3>
+                        <p class="text-xs text-slate-600 mt-1">Entra a una copia de pruebas. Podrás crear, editar y probar todo sin alterar la base de datos de Firebase.</p>
+                    </div>
+                    <button onclick="window.enterSandboxMode()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-xl shadow-md transition text-xs">
+                        🧪 Iniciar Entorno Aislado de Pruebas (Sandbox)
+                    </button>
+                </div>
+            </section>
         </main>
     </div>
 
-    <!-- Modal Product -->
-    <div id="modal-product" class="fixed inset-0 bg-slate-900 bg-opacity-60 hidden items-center justify-center p-4 z-40 backdrop-blur-xs">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center p-5 border-b border-gray-100">
-                <h2 id="modal-product-title" class="text-xl font-bold text-gray-800">Nuevo Producto</h2>
-                <button class="btn-close-modal text-gray-400 hover:text-gray-600 p-1 rounded-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
+    <!-- Order Modal -->
+    <div id="order-modal" class="hidden fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-800">Registrar Producto / Pedido</h3>
+                <button onclick="window.closeModal('order-modal')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
             </div>
-            <form id="form-product" class="p-5 space-y-4">
-                <input type="hidden" id="product-id" />
+            <form onsubmit="window.handleCreateOrder(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase">Nombre del producto</label>
-                    <input required type="text" id="prod-name" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase">Descripción</label>
-                    <textarea id="prod-desc" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" rows="2"></textarea>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase">Precio Catalogo ($)</label>
-                        <input required type="number" min="0" step="0.01" id="prod-cost" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase">Precio Venta ($)</label>
-                        <input required type="number" min="0" step="0.01" id="prod-sale" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                    </div>
-                </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition">Guardar Producto</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal Customer -->
-    <div id="modal-customer" class="fixed inset-0 bg-slate-900 bg-opacity-60 hidden items-center justify-center p-4 z-40 backdrop-blur-xs">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center p-5 border-b border-gray-100">
-                <h2 id="modal-customer-title" class="text-xl font-bold text-gray-800">Nuevo Cliente</h2>
-                <button class="btn-close-modal text-gray-400 hover:text-gray-600 p-1 rounded-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            <form id="form-customer" class="p-5 space-y-4">
-                <input type="hidden" id="customer-id" />
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase">Nombre completo</label>
-                    <input required type="text" id="cust-name" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase">Teléfono</label>
-                    <input type="tel" id="cust-phone" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase">Dirección</label>
-                    <textarea id="cust-address" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" rows="2"></textarea>
-                </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition">Guardar Cliente</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal Order -->
-    <div id="modal-order" class="fixed inset-0 bg-slate-900 bg-opacity-60 hidden items-center justify-center p-4 z-40 backdrop-blur-xs">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center p-5 border-b border-gray-100">
-                <h2 class="text-xl font-bold text-gray-800">Registrar Producto / Pedido</h2>
-                <button class="btn-close-modal text-gray-400 hover:text-gray-600 p-1 rounded-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            <form id="form-order" class="p-5 space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase">Cliente</label>
-                    <select required id="ord-customer" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <label class="block text-xs font-bold text-slate-700 uppercase">Cliente</label>
+                    <select id="ord-customer-select" required class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
                         <option value="">Selecciona un cliente...</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase">Producto</label>
-                    <select required id="ord-product" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <label class="block text-xs font-bold text-slate-700 uppercase">Producto</label>
+                    <select id="ord-product-select" required onchange="window.handleOrderProductChange(this.value)" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
                         <option value="">Selecciona un producto...</option>
                     </select>
                 </div>
+                <div id="ord-promo-badge" class="hidden bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl text-xs font-semibold">
+                    🔥 ¡OFERTA TEMPORAL ACTIVA!
+                </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase">Cantidad</label>
-                        <input required type="number" min="1" id="ord-qty" value="1" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                        <label class="block text-xs font-bold text-slate-700 uppercase">Cantidad</label>
+                        <input type="number" id="ord-quantity-input" min="1" value="1" required oninput="window.updateOrderImportPreview()" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase">Precio Unit. ($)</label>
-                        <input required type="number" min="0" step="0.01" id="ord-price" class="mt-1 w-full p-3 border rounded-xl bg-gray-50 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Precio venta..." />
+                        <label class="block text-xs font-bold text-slate-700 uppercase">Precio Unit. ($)</label>
+                        <input type="number" id="ord-price-input" step="0.01" min="0" required oninput="window.updateOrderImportPreview()" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
                     </div>
                 </div>
-                <div id="ord-preview-total" class="bg-indigo-50/50 p-3 rounded-xl text-xs text-right font-medium text-gray-700 border border-indigo-100 hidden">
-                    Importe de este producto: <span id="ord-preview-amount" class="text-base text-indigo-700 font-bold ml-1">$0.00</span>
+                <div class="bg-indigo-50/60 border border-indigo-100 p-3 rounded-xl text-xs text-right font-medium text-slate-700">
+                    Importe total: <span id="ord-import-preview" class="text-base text-indigo-700 font-black ml-1">$0.00</span>
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition">Agregar Producto</button>
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition text-xs">
+                    Agregar Producto al Pedido
+                </button>
             </form>
         </div>
     </div>
 
-    <!-- Modal Abonos / Payments -->
-    <div id="modal-payments" class="fixed inset-0 bg-slate-900 bg-opacity-60 hidden items-center justify-center p-4 z-40 backdrop-blur-xs">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5">
-            <div class="flex justify-between items-center border-b border-gray-100 pb-3 mb-4">
-                <h2 class="text-xl font-bold text-gray-800">Historial de Abonos</h2>
-                <button class="btn-close-modal text-gray-400 hover:text-gray-600 p-1 rounded-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="hidden fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-800">Historial y Registro de Abonos</h3>
+                <button onclick="window.closeModal('payment-modal')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
             </div>
-            <div id="payment-summary" class="mb-4 bg-gray-50 p-4 rounded-xl border"></div>
-            <div id="payments-list" class="space-y-2 mb-6 max-h-60 overflow-y-auto"></div>
-            <form id="form-payment" class="flex gap-2">
-                <input required type="number" min="0.01" step="0.01" id="pay-amount" placeholder="Monto del abono ($)..." class="flex-1 p-3 border rounded-xl text-sm bg-gray-50 outline-none" />
-                <button type="submit" class="bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-emerald-700 text-xs shrink-0 shadow-md shadow-emerald-100">+ Abonar</button>
+            <div id="payment-modal-summary" class="bg-slate-50 p-4 rounded-xl border text-xs"></div>
+            <div id="payment-modal-list" class="space-y-2 max-h-48 overflow-y-auto"></div>
+            <form onsubmit="window.handleAddPayment(event)" class="flex gap-2 pt-2 border-t">
+                <input type="number" id="payment-amount-input" min="0.01" step="0.01" required placeholder="Monto del abono ($)..." class="flex-1 p-3 border rounded-xl text-xs bg-slate-50 outline-none">
+                <button type="submit" class="bg-emerald-600 text-white font-bold px-4 py-3 rounded-xl text-xs hover:bg-emerald-700 transition shrink-0">
+                    + Abonar
+                </button>
             </form>
         </div>
     </div>
 
-    <!-- Modal Ticket / Printable -->
-    <div id="modal-ticket" class="fixed inset-0 bg-slate-900 bg-opacity-60 hidden items-center justify-center p-4 z-40 backdrop-blur-xs">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-end mb-2 no-print">
-                <button class="btn-close-modal text-gray-400 hover:text-gray-600 p-1 rounded-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+    <!-- Ticket Modal -->
+    <div id="ticket-modal" class="hidden fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3 no-print">
+                <h3 class="text-base font-bold text-slate-800">Ticket de Compra</h3>
+                <button onclick="window.closeModal('ticket-modal')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+
+            <div id="printable-ticket" class="bg-white p-4 border rounded-2xl font-mono text-xs text-slate-800 space-y-4"></div>
+
+            <div class="space-y-2 pt-2 no-print">
+                <button onclick="window.printTicket()" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition text-xs flex items-center justify-center gap-2">
+                    🖨️ Imprimir / Guardar PDF
+                </button>
+                <button onclick="window.shareTicketWhatsApp()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition text-xs flex items-center justify-center gap-2">
+                    📱 Enviar por WhatsApp
                 </button>
             </div>
-            
-            <div id="printable-ticket" class="bg-white p-6 border rounded-2xl font-mono text-xs text-gray-800 max-w-sm mx-auto shadow-sm space-y-4"></div>
-
-            <button onclick="window.print()" class="w-full bg-slate-900 text-white py-3 rounded-xl mt-4 font-bold hover:bg-black flex justify-center items-center gap-2 shadow-lg transition no-print">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                Imprimir / Guardar PDF
-            </button>
         </div>
     </div>
 
+    <!-- Customer Modal -->
+    <div id="customer-modal" class="hidden fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 id="customer-modal-title" class="text-lg font-bold text-slate-800">Nuevo Cliente</h3>
+                <button onclick="window.closeModal('customer-modal')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <form onsubmit="window.handleSaveCustomer(event)" class="space-y-4">
+                <input type="hidden" id="cust-id-hidden">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase">Nombre Completo</label>
+                    <input type="text" id="cust-name-input" required class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase">Teléfono</label>
+                    <input type="tel" id="cust-phone-input" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase">Dirección</label>
+                    <textarea id="cust-address-input" rows="2" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white"></textarea>
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition text-xs">
+                    Guardar Cliente
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="product-modal" class="hidden fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 id="product-modal-title" class="text-lg font-bold text-slate-800">Nuevo Producto</h3>
+                <button onclick="window.closeModal('product-modal')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+            <form onsubmit="window.handleSaveProduct(event)" class="space-y-4">
+                <input type="hidden" id="prod-id-hidden">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase">Nombre del Producto</label>
+                    <input type="text" id="prod-name-input" required class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase">Categoría</label>
+                    <input type="text" id="prod-category-input" placeholder="ej. Comida, Bebidas, Postres..." class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase">Descripción</label>
+                    <textarea id="prod-desc-input" rows="2" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase">Costo Proveedor ($)</label>
+                        <input type="number" id="prod-cost-input" step="0.01" min="0" required oninput="window.calcProductMargins()" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase">Precio Público ($)</label>
+                        <input type="number" id="prod-sale-input" step="0.01" min="0" required oninput="window.calcProductMargins()" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
+                    </div>
+                </div>
+
+                <!-- Promo Config -->
+                <div class="border-t border-slate-100 pt-4 space-y-3">
+                    <label class="block text-xs font-bold text-indigo-700 uppercase">🏷️ Oferta / Precio Temporal</label>
+                    <select id="prod-promo-mode" onchange="window.togglePromoFields(this.value)" class="w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none">
+                        <option value="none">Sin Promoción</option>
+                        <option value="right_now">Modo A: "Desde Ahora" (Solo Hora Fin)</option>
+                        <option value="date_range">Modo B: "De Tal a Tal" (Rango de Fechas)</option>
+                    </select>
+
+                    <div id="promo-fields-container" class="hidden space-y-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-700 uppercase">Precio en Oferta ($)</label>
+                            <input type="number" id="prod-promo-price" step="0.01" min="0" oninput="window.calcProductMargins()" class="mt-1 w-full p-2.5 border rounded-xl text-xs bg-white outline-none">
+                        </div>
+                        <div id="promo-start-field" class="hidden">
+                            <label class="block text-[10px] font-bold text-slate-700 uppercase">Fecha y Hora de Inicio</label>
+                            <input type="datetime-local" id="prod-promo-from" class="mt-1 w-full p-2.5 border rounded-xl text-xs bg-white outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-700 uppercase">Fecha y Hora de Fin</label>
+                            <input type="datetime-local" id="prod-promo-until" class="mt-1 w-full p-2.5 border rounded-xl text-xs bg-white outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Margin Simulator -->
+                <div id="prod-margin-box" class="bg-slate-50 p-3 rounded-xl border text-xs space-y-1">
+                    <p class="text-slate-500 flex justify-between"><span>Margen Venta Normal:</span> <span id="margin-normal-val" class="font-bold text-slate-700">$0.00</span></p>
+                    <p class="text-slate-500 flex justify-between"><span>Margen en Oferta:</span> <span id="margin-promo-val" class="font-bold text-emerald-600">$0.00</span></p>
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition text-xs">
+                    Guardar Producto
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase Script Module -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, collection, doc, setDoc, onSnapshot, 
-            addDoc, updateDoc, deleteDoc 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gestor-pedidos-app';
+        import { getFirestore, collection, doc, setDoc, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const customFirebaseConfig = {
             apiKey: "AIzaSyC-Qu56m35KtD9DIq17Qk3lu1Ai4a02WJA",
@@ -385,878 +534,1288 @@
             ? JSON.parse(__firebase_config)
             : customFirebaseConfig;
 
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gestor-pedidos-app';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        const state = {
+        // Global State Object
+        window.state = {
             user: null,
             customers: [],
             products: [],
             orders: [],
+            logs: [],
             settings: { name: 'Mi Negocio', phone: '', address: '', pin: '1234' },
             activeTab: 'dashboard',
             isLocked: true,
-            currentOrder: null
+            isSandbox: false,
+            sandboxData: null,
+            currentOrder: null,
+            dashTimeFilter: 'today',
+            ordStatusFilter: 'active',
+            ordSearchQuery: '',
+            custSearchQuery: '',
+            prodSearchQuery: '',
+            prodCategoryFilter: '',
+            logSearchQuery: '',
+            logCategoryFilter: ''
         };
 
         const sharedBasePath = `artifacts/${appId}/public/data`;
         const dbCollectionPath = (coll) => `${sharedBasePath}/${coll}`;
 
-        const normalizeJSON = (type, data) => JSON.parse(JSON.stringify(data || {}));
+        const getActiveCustomers = () => window.state.isSandbox ? window.state.sandboxData.customers : window.state.customers;
+        const getActiveProducts = () => window.state.isSandbox ? window.state.sandboxData.products : window.state.products;
+        const getActiveOrders = () => window.state.isSandbox ? window.state.sandboxData.orders : window.state.orders;
+        const getActiveLogs = () => window.state.isSandbox ? window.state.sandboxData.logs : window.state.logs;
+        const getActiveSettings = () => window.state.isSandbox ? window.state.sandboxData.settings : window.state.settings;
 
-        const formatCurrency = (amount) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount || 0);
+        window.normalizeJSON = (type, data) => JSON.parse(JSON.stringify(data || {}));
 
-        const formatDate = (isoString) => {
+        window.formatCurrency = (amount) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(amount || 0);
+
+        window.formatDate = (isoString) => {
             if (!isoString) return '';
-            const date = new Date(isoString);
-            return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const d = new Date(isoString);
+            return d.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         };
 
-        const formatTime = (isoString) => {
+        window.formatTime = (isoString) => {
             if (!isoString) return '';
-            const date = new Date(isoString);
-            return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            const d = new Date(isoString);
+            return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
         };
 
-        const showToast = (message, type = 'success') => {
+        window.showToast = (message, type = 'success') => {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            const bgColor = type === 'error' ? 'bg-red-600' : 'bg-emerald-600';
-            toast.className = `${bgColor} text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2 animate-bounce text-sm font-semibold transition-all duration-300`;
-            toast.innerHTML = `<span>${message}</span>`;
+            const bg = type === 'error' ? 'bg-red-600' : 'bg-emerald-600';
+            toast.className = `${bg} text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold pointer-events-auto flex items-center gap-2 animate-bounce`;
+            toast.innerHTML = `<span>${type === 'success' ? '✓' : '⚠️'}</span> <span>${message}</span>`;
             container.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.add('opacity-0');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            setTimeout(() => toast.remove(), 3000);
         };
 
-        const getOrderItems = (order) => {
+        // Audit Log Activity Logger
+        window.logActivity = async (category, action, title, details) => {
+            const logEntry = window.normalizeJSON('log', {
+                id: 'log_' + Date.now(),
+                timestamp: new Date().toISOString(),
+                category, action, title, details
+            });
+
+            if (window.state.isSandbox) {
+                window.state.sandboxData.logs.unshift(logEntry);
+                window.renderLogs();
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, dbCollectionPath('logs')), logEntry);
+            } catch (err) {
+                console.error("Error logging activity:", err);
+            }
+        };
+
+        // Promo Price Helper Functions
+        window.getEffectivePrice = (product) => {
+            if (!product || !product.promoMode || product.promoMode === 'none' || !product.promoPrice) {
+                return Number(product.salePrice || 0);
+            }
+            const now = new Date();
+            const until = product.promoUntil ? new Date(product.promoUntil) : null;
+            const from = product.promoFrom ? new Date(product.promoFrom) : null;
+
+            if (product.promoMode === 'right_now') {
+                if (!until || now <= until) return Number(product.promoPrice);
+            } else if (product.promoMode === 'date_range') {
+                if (from && until && now >= from && now <= until) return Number(product.promoPrice);
+            }
+            return Number(product.salePrice || 0);
+        };
+
+        window.getPromoStatus = (product) => {
+            if (!product || !product.promoMode || product.promoMode === 'none' || !product.promoPrice) {
+                return { active: false, status: 'none', label: 'Sin Promoción' };
+            }
+            const now = new Date();
+            const until = product.promoUntil ? new Date(product.promoUntil) : null;
+            const from = product.promoFrom ? new Date(product.promoFrom) : null;
+
+            if (product.promoMode === 'right_now') {
+                if (!until || now <= until) {
+                    return { active: true, status: 'active', label: '🟢 OFERTA ACTIVA' };
+                } else {
+                    return { active: false, status: 'expired', label: '🔴 OFERTA VENCIDA' };
+                }
+            } else if (product.promoMode === 'date_range') {
+                if (from && now < from) {
+                    return { active: false, status: 'scheduled', label: '🟡 PROGRAMADA' };
+                } else if (from && until && now >= from && now <= until) {
+                    return { active: true, status: 'active', label: '🟢 OFERTA ACTIVA' };
+                } else {
+                    return { active: false, status: 'expired', label: '🔴 OFERTA VENCIDA' };
+                }
+            }
+            return { active: false, status: 'none', label: 'Sin Promoción' };
+        };
+
+        // Order calculation helpers
+        window.getOrderItems = (order) => {
             if (order.items && Array.isArray(order.items)) return order.items;
             return [{
                 id: order.id || 'item-1',
                 productId: order.productId,
+                productName: order.productName || 'Producto',
                 quantity: Number(order.quantity || 1),
                 finalPrice: Number(order.finalPrice || 0),
                 originalPrice: Number(order.originalPrice || order.finalPrice || 0),
-                timestamp: formatTime(order.createdAt)
+                timestamp: window.formatTime(order.createdAt)
             }];
         };
 
-        const getOrderTotal = (order) => getOrderItems(order).reduce((sum, item) => sum + (Number(item.finalPrice) * Number(item.quantity)), 0);
+        window.getOrderTotal = (order) => {
+            return window.getOrderItems(order).reduce((sum, item) => sum + (Number(item.finalPrice) * Number(item.quantity)), 0);
+        };
 
-        const getOrderTotalPaid = (order) => (order.payments || []).reduce((sum, p) => sum + Number(p.amount), 0);
+        window.getOrderTotalPaid = (order) => {
+            return (order.payments || []).reduce((sum, p) => sum + Number(p.amount), 0);
+        };
 
-        const initAuth = async () => {
+        // Auth & Sync
+        const initAuthAndSync = async () => {
             try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
             } catch (err) {
-                console.error("Auth Error:", err);
+                console.error("Auth error:", err);
+            }
+
+            onAuthStateChanged(auth, (usr) => {
+                window.state.user = usr;
+                if (!usr) return;
+
+                onSnapshot(collection(db, dbCollectionPath('customers')), (snap) => {
+                    window.state.customers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    if (!window.state.isSandbox) window.renderAllViews();
+                });
+
+                onSnapshot(collection(db, dbCollectionPath('products')), (snap) => {
+                    window.state.products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    if (!window.state.isSandbox) window.renderAllViews();
+                });
+
+                onSnapshot(collection(db, dbCollectionPath('orders')), (snap) => {
+                    const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    fetched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    window.state.orders = fetched;
+                    if (!window.state.isSandbox) window.renderAllViews();
+                });
+
+                onSnapshot(collection(db, dbCollectionPath('logs')), (snap) => {
+                    const fetchedLogs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    fetchedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    window.state.logs = fetchedLogs;
+                    if (!window.state.isSandbox) window.renderLogs();
+                });
+
+                onSnapshot(doc(db, dbCollectionPath('settings'), 'business_info'), (docSnap) => {
+                    if (docSnap.exists()) {
+                        window.state.settings = docSnap.data();
+                        document.getElementById('sidebar-business-name').textContent = window.state.settings.name || 'Mi Negocio';
+                        document.getElementById('mobile-business-name').textContent = window.state.settings.name || 'Mi Negocio';
+                    }
+                    if (!window.state.isSandbox) window.renderSettingsValues();
+                });
+            });
+        };
+
+        // UI Navigation & Lock
+        window.unlockApp = (e) => {
+            e?.preventDefault();
+            const input = document.getElementById('pin-input').value;
+            const correctPin = getActiveSettings().pin || '1234';
+            if (input === correctPin) {
+                window.state.isLocked = false;
+                document.getElementById('pin-screen').classList.add('hidden');
+                document.getElementById('app-container').classList.remove('hidden');
+                document.getElementById('pin-input').value = '';
+                document.getElementById('pin-error-msg').classList.add('hidden');
+                window.renderAllViews();
+            } else {
+                document.getElementById('pin-error-msg').classList.remove('hidden');
+                document.getElementById('pin-input').value = '';
             }
         };
 
-        onAuthStateChanged(auth, (currentUser) => {
-            state.user = currentUser;
-            if (currentUser) {
-                setupRealtimeListeners();
-            }
-        });
+        window.lockApp = () => {
+            window.state.isLocked = true;
+            document.getElementById('app-container').classList.add('hidden');
+            document.getElementById('pin-screen').classList.remove('hidden');
+        };
 
-        initAuth();
+        window.toggleMobileMenu = () => {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        };
 
-        function setupRealtimeListeners() {
-            onSnapshot(collection(db, dbCollectionPath('customers')), (snap) => {
-                state.customers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                renderCustomers();
-                renderSelectOptions();
-            }, err => console.error(err));
+        window.switchTab = (tabId) => {
+            window.state.activeTab = tabId;
+            document.querySelectorAll('.tab-page').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('bg-indigo-600', 'text-white'));
+            
+            const targetPage = document.getElementById(`tab-${tabId}`);
+            if (targetPage) targetPage.classList.remove('hidden');
+            
+            const activeNav = document.getElementById(`nav-btn-${tabId}`);
+            if (activeNav) activeNav.classList.add('bg-indigo-600', 'text-white');
 
-            onSnapshot(collection(db, dbCollectionPath('products')), (snap) => {
-                state.products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                renderProducts();
-                renderSelectOptions();
-            }, err => console.error(err));
+            window.renderAllViews();
+        };
 
-            onSnapshot(collection(db, dbCollectionPath('orders')), (snap) => {
-                const fetchedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                fetchedOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                state.orders = fetchedOrders;
-                renderOrders();
-                renderDashboard();
-            }, err => console.error(err));
+        // Render Dashboard
+        window.renderDashboard = () => {
+            const orders = getActiveOrders().filter(o => !o.archived);
+            const products = getActiveProducts();
+            const customers = getActiveCustomers();
 
-            onSnapshot(doc(db, dbCollectionPath('settings'), 'business_info'), (docSnap) => {
-                if (docSnap.exists()) {
-                    state.settings = docSnap.data();
-                    document.getElementById('sidebar-business-name').textContent = state.settings.name || 'Mi Negocio';
-                    document.getElementById('header-business-name').textContent = state.settings.name || 'Mi Negocio';
-                    document.getElementById('cfg-name').value = state.settings.name || '';
-                    document.getElementById('cfg-phone').value = state.settings.phone || '';
-                    document.getElementById('cfg-address').value = state.settings.address || '';
-                    document.getElementById('cfg-pin').value = state.settings.pin || '1234';
-                    document.getElementById('cfg-confirm-pin').value = state.settings.pin || '1234';
-                }
-            }, err => console.error(err));
-        }
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0,0,0,0);
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        function switchTab(tabId) {
-            state.activeTab = tabId;
-            document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`view-${tabId}`).classList.remove('hidden');
-
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                if (btn.dataset.tab === tabId) {
-                    btn.className = 'nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-colors bg-indigo-600 text-white shadow-md shadow-indigo-900';
-                } else {
-                    btn.className = 'nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-colors text-slate-400 hover:bg-slate-800 hover:text-white';
-                }
+            const filteredOrders = orders.filter(o => {
+                const orderDate = new Date(o.createdAt);
+                if (window.state.dashTimeFilter === 'today') return orderDate >= startOfToday;
+                if (window.state.dashTimeFilter === 'week') return orderDate >= startOfWeek;
+                if (window.state.dashTimeFilter === 'month') return orderDate >= startOfMonth;
+                return true;
             });
 
-            document.getElementById('sidebar').classList.add('hidden');
-            document.getElementById('sidebar').classList.remove('block');
-        }
-
-        function renderDashboard() {
-            const totalCobrado = state.orders.reduce((sum, o) => sum + getOrderTotalPaid(o), 0);
-            const porCobrar = state.orders.reduce((sum, o) => sum + Math.max(0, getOrderTotal(o) - getOrderTotalPaid(o)), 0);
-            
-            const gananciaNeta = state.orders.reduce((sum, o) => {
-                const items = getOrderItems(o);
-                return sum + items.reduce((itemSum, item) => {
-                    const product = state.products.find(p => p.id === item.productId);
-                    const cost = product ? Number(product.costPrice) : 0;
-                    return itemSum + ((Number(item.finalPrice) - cost) * Number(item.quantity));
+            const totalCobrado = filteredOrders.reduce((sum, o) => sum + window.getOrderTotalPaid(o), 0);
+            const porCobrar = filteredOrders.reduce((sum, o) => sum + Math.max(0, window.getOrderTotal(o) - window.getOrderTotalPaid(o)), 0);
+            const gananciaNeta = filteredOrders.reduce((sum, o) => {
+                const items = window.getOrderItems(o);
+                return sum + items.reduce((iSum, item) => {
+                    const prod = products.find(p => p.id === item.productId);
+                    const cost = prod ? Number(prod.costPrice || 0) : 0;
+                    return iSum + ((Number(item.finalPrice) - cost) * Number(item.quantity));
                 }, 0);
             }, 0);
 
-            document.getElementById('dash-cobrado').textContent = formatCurrency(totalCobrado);
-            document.getElementById('dash-por-cobrar').textContent = formatCurrency(porCobrar);
-            document.getElementById('dash-ganancia').textContent = formatCurrency(gananciaNeta);
+            document.getElementById('dash-total-cobrado').textContent = window.formatCurrency(totalCobrado);
+            document.getElementById('dash-por-cobrar').textContent = window.formatCurrency(porCobrar);
+            document.getElementById('dash-ganancia-neta').textContent = window.formatCurrency(gananciaNeta);
 
             const recentContainer = document.getElementById('dash-recent-orders');
-            if (state.orders.length === 0) {
-                recentContainer.innerHTML = `<p class="text-gray-400 text-sm">No hay pedidos registrados.</p>`;
+            if (filteredOrders.length === 0) {
+                recentContainer.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No hay pedidos registrados en este período.</p>`;
+            } else {
+                recentContainer.innerHTML = filteredOrders.slice(0, 5).map(o => {
+                    const cust = customers.find(c => c.id === o.customerId);
+                    const items = window.getOrderItems(o);
+                    const total = window.getOrderTotal(o);
+                    const paid = window.getOrderTotalPaid(o);
+                    const isPaid = paid >= total;
+                    return `
+                        <div class="flex justify-between items-center pt-3 text-xs">
+                            <div>
+                                <p class="font-bold text-slate-800">${cust ? cust.name : 'Cliente Eliminado'}</p>
+                                <p class="text-slate-500">${items.length} producto(s) • ${window.formatDate(o.createdAt)}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-slate-800">${window.formatCurrency(total)}</p>
+                                <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                                    ${isPaid ? 'Pagado' : 'Pendiente'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        };
+
+        window.setDashFilter = (filter) => {
+            window.state.dashTimeFilter = filter;
+            document.querySelectorAll('.dash-filter-btn').forEach(b => b.classList.remove('bg-white', 'text-indigo-600', 'shadow-xs'));
+            document.getElementById(`dash-filter-${filter}`).classList.add('bg-white', 'text-indigo-600', 'shadow-xs');
+            window.renderDashboard();
+        };
+
+        // Render Orders
+        window.renderOrders = () => {
+            let orders = getActiveOrders();
+            const customers = getActiveCustomers();
+            const products = getActiveProducts();
+
+            // Status Filter
+            if (window.state.ordStatusFilter === 'active') orders = orders.filter(o => !o.archived);
+            else if (window.state.ordStatusFilter === 'pending') orders = orders.filter(o => !o.archived && window.getOrderTotalPaid(o) < window.getOrderTotal(o));
+            else if (window.state.ordStatusFilter === 'paid') orders = orders.filter(o => !o.archived && window.getOrderTotalPaid(o) >= window.getOrderTotal(o));
+            else if (window.state.ordStatusFilter === 'archived') orders = orders.filter(o => o.archived);
+
+            // Search Query Filter
+            if (window.state.ordSearchQuery.trim()) {
+                const q = window.state.ordSearchQuery.toLowerCase();
+                orders = orders.filter(o => {
+                    const cust = customers.find(c => c.id === o.customerId);
+                    const custName = cust ? cust.name.toLowerCase() : '';
+                    const items = window.getOrderItems(o);
+                    const prodMatch = items.some(i => i.productName.toLowerCase().includes(q));
+                    return custName.includes(q) || prodMatch;
+                });
+            }
+
+            const container = document.getElementById('orders-list-container');
+            if (orders.length === 0) {
+                container.innerHTML = `<div class="bg-white p-8 rounded-2xl text-center text-slate-400 text-xs border border-slate-100">No se encontraron pedidos con este criterio.</div>`;
                 return;
             }
 
-            recentContainer.innerHTML = state.orders.slice(0, 5).map(order => {
-                const customer = state.customers.find(c => c.id === order.customerId);
-                const items = getOrderItems(order);
-                const total = getOrderTotal(order);
-                const paid = getOrderTotalPaid(order);
-                const isPaid = paid >= total;
-
-                return `
-                    <div class="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl transition border-b border-gray-50 text-xs">
-                        <div>
-                            <p class="font-bold text-gray-800">${customer ? customer.name : 'Cliente Eliminado'}</p>
-                            <p class="text-gray-500">${items.length} producto(s) • Hora: ${items[items.length - 1]?.timestamp || formatDate(order.createdAt)}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="font-bold text-gray-800">${formatCurrency(total)}</p>
-                            <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-                                ${isPaid ? 'Pagado' : 'Pendiente'}
-                            </span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderOrders() {
-            const container = document.getElementById('orders-list');
-            if (state.orders.length === 0) {
-                container.innerHTML = `<p class="text-gray-400 text-sm">No hay pedidos activos.</p>`;
-                return;
-            }
-
-            container.innerHTML = state.orders.map(order => {
-                const customer = state.customers.find(c => c.id === order.customerId);
-                const items = getOrderItems(order);
-                const total = getOrderTotal(order);
-                const paid = getOrderTotalPaid(order);
+            container.innerHTML = orders.map(order => {
+                const customer = customers.find(c => c.id === order.customerId);
+                const items = window.getOrderItems(order);
+                const total = window.getOrderTotal(order);
+                const paid = window.getOrderTotalPaid(order);
                 const isPaid = paid >= total;
                 const progress = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
 
                 return `
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between gap-4">
                         <div class="flex-1">
-                            <div class="flex justify-between md:justify-start gap-4 items-center mb-2">
-                                <h3 class="font-bold text-base text-gray-800">${customer?.name || 'Cliente Desconocido'}</h3>
-                                <span class="text-[10px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                            <div class="flex items-center gap-3 mb-2">
+                                <h3 class="font-bold text-base text-slate-800">${customer ? customer.name : 'Cliente Eliminado'}</h3>
+                                <span class="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
                                     ${isPaid ? 'Pagado' : 'Pendiente'}
                                 </span>
+                                ${order.archived ? `<span class="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">Archivado</span>` : ''}
                             </div>
 
                             <div class="space-y-1.5 my-3">
-                                ${items.map((item, idx) => `
-                                    <div class="flex justify-between items-center bg-gray-50 px-3 py-1.5 rounded-lg text-xs">
+                                ${items.map((item) => `
+                                    <div class="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-xl text-xs border border-slate-100">
                                         <div class="flex items-center gap-2">
-                                            <span class="font-semibold text-gray-800">${item.quantity}x</span>
-                                            <span class="text-gray-700">${item.productName || state.products.find(p => p.id === item.productId)?.name || 'Producto'}</span>
-                                            <span class="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono">⏰ ${item.timestamp || formatTime(order.createdAt)}</span>
+                                            <span class="font-bold text-slate-800">${item.quantity}x</span>
+                                            <span class="text-slate-700">${item.productName}</span>
+                                            <span class="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg font-mono">
+                                                ⏰ ${item.timestamp || window.formatTime(order.createdAt)}
+                                            </span>
                                         </div>
                                         <div class="flex items-center gap-2">
-                                            <span class="font-bold text-gray-800">${formatCurrency(item.finalPrice * item.quantity)}</span>
-                                            <button data-order-id="${order.id}" data-item-id="${item.id}" class="btn-remove-item text-gray-400 hover:text-red-500 p-0.5">✕</button>
+                                            <span class="font-bold text-slate-800">${window.formatCurrency(item.finalPrice * item.quantity)}</span>
+                                            <button onclick="window.removeItemFromOrder('${order.id}', '${item.id}')" class="text-slate-400 hover:text-red-500 font-bold px-1">✕</button>
                                         </div>
                                     </div>
                                 `).join('')}
                             </div>
 
-                            <p class="text-[11px] text-gray-400">Iniciado: ${formatDate(order.createdAt)}</p>
-                            
+                            <p class="text-[11px] text-slate-400">Iniciado: ${window.formatDate(order.createdAt)}</p>
+
                             <div class="mt-3 max-w-sm">
                                 <div class="flex justify-between text-xs mb-1">
-                                    <span class="text-gray-500">Pagado: ${formatCurrency(paid)}</span>
-                                    <span class="text-gray-800 font-bold">Total: ${formatCurrency(total)}</span>
+                                    <span class="text-slate-500">Abonado: ${window.formatCurrency(paid)}</span>
+                                    <span class="text-slate-800 font-bold">Total: ${window.formatCurrency(total)}</span>
                                 </div>
-                                <div class="w-full bg-gray-100 rounded-full h-2">
+                                <div class="w-full bg-slate-100 rounded-full h-2">
                                     <div class="h-2 rounded-full transition-all duration-500 ${isPaid ? 'bg-emerald-500' : 'bg-indigo-600'}" style="width: ${progress}%"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap md:flex-col gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0">
-                            <button data-order-id="${order.id}" class="btn-open-payments bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-bold transition flex-1 md:flex-none text-center">
+                        <div class="flex flex-wrap md:flex-col gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 justify-center">
+                            <button onclick="window.openPaymentModal('${order.id}')" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-xl text-xs font-bold transition flex-1 md:flex-none">
                                 💰 Abonos (${order.payments?.length || 0})
                             </button>
-                            <button data-order-id="${order.id}" class="btn-open-ticket bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-xl text-xs font-semibold transition flex justify-center items-center flex-1 md:flex-none">
-                                🖨️ <span class="ml-1">Ticket</span>
+                            <button onclick="window.openTicketModal('${order.id}')" class="bg-slate-100 text-slate-700 hover:bg-slate-200 px-4 py-2 rounded-xl text-xs font-bold transition flex-1 md:flex-none">
+                                🖨️ Ticket
+                            </button>
+                            <button onclick="window.toggleArchiveOrder('${order.id}')" class="bg-slate-100 text-slate-600 hover:bg-slate-200 px-4 py-2 rounded-xl text-xs font-semibold transition flex-1 md:flex-none">
+                                ${order.archived ? '📂 Desarchivar' : '📦 Archivar'}
                             </button>
                         </div>
                     </div>
                 `;
             }).join('');
-        }
+        };
 
-        function renderCustomers() {
-            const container = document.getElementById('customers-list');
-            container.innerHTML = state.customers.map(c => {
-                const cOrders = state.orders.filter(o => o.customerId === c.id);
-                const totalSpent = cOrders.reduce((sum, o) => sum + getOrderTotal(o), 0);
+        window.setOrderStatusFilter = (status) => {
+            window.state.ordStatusFilter = status;
+            document.querySelectorAll('.ord-filter-btn').forEach(b => b.classList.remove('bg-white', 'text-indigo-600', 'shadow-xs'));
+            document.getElementById(`ord-filter-${status}`).classList.add('bg-white', 'text-indigo-600', 'shadow-xs');
+            window.renderOrders();
+        };
 
-                return `
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-800">${c.name}</h3>
-                            <p class="text-xs text-gray-500 mt-1">📞 ${c.phone || 'Sin teléfono'}</p>
-                            <p class="text-xs text-gray-500 mt-1">📍 ${c.address || 'Sin dirección'}</p>
-                            
-                            <div class="mt-4 bg-indigo-50/60 p-3 rounded-xl border border-indigo-100/50">
-                                <div class="flex justify-between text-xs">
-                                    <span class="text-indigo-900 font-medium">Pedidos Totales:</span>
-                                    <span class="font-bold text-indigo-900">${cOrders.length}</span>
-                                </div>
-                                <div class="flex justify-between text-xs mt-1">
-                                    <span class="text-indigo-900 font-medium">Total Gastado:</span>
-                                    <span class="font-bold text-indigo-900">${formatCurrency(totalSpent)}</span>
-                                </div>
-                            </div>
-                        </div>
+        window.handleOrderSearch = (query) => {
+            window.state.ordSearchQuery = query;
+            window.renderOrders();
+        };
 
-                        <div class="mt-4 flex gap-2 pt-3 border-t border-gray-100">
-                            <button data-customer-id="${c.id}" class="btn-edit-customer flex-1 bg-gray-100 text-gray-700 text-xs font-semibold py-2 rounded-xl hover:bg-gray-200 transition">Editar</button>
-                            <button data-customer-id="${c.id}" class="btn-delete-customer px-3 py-2 rounded-xl text-white flex justify-center items-center transition ${cOrders.length > 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'}" ${cOrders.length > 0 ? 'disabled' : ''}>🗑️</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
+        window.openOrderModal = () => {
+            window.renderSelectOptions();
+            document.getElementById('order-modal').classList.remove('hidden');
+        };
 
-        function renderProducts() {
-            const container = document.getElementById('products-list');
-            container.innerHTML = state.products.map(p => {
-                const inUse = state.orders.some(o => getOrderItems(o).some(item => item.productId === p.id));
+        window.handleOrderProductChange = (productId) => {
+            const product = getActiveProducts().find(p => p.id === productId);
+            const promoBadge = document.getElementById('ord-promo-badge');
+            
+            if (product) {
+                const effectivePrice = window.getEffectivePrice(product);
+                const promoInfo = window.getPromoStatus(product);
                 
-                return `
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-800">${p.name}</h3>
-                            <p class="text-xs text-gray-500 mt-1 line-clamp-2">${p.description || 'Sin descripción'}</p>
-                            <div class="mt-4 space-y-1 bg-gray-50 p-3 rounded-xl">
-                                <p class="text-xs flex justify-between"><span class="text-gray-500">Costo Catalogo:</span> <span class="font-medium text-gray-700">${formatCurrency(p.costPrice)}</span></p>
-                                <p class="text-xs flex justify-between"><span class="text-gray-500">Precio Con Descuento:</span> <span class="font-bold text-emerald-600">${formatCurrency(p.salePrice)}</span></p>
-                            </div>
-                        </div>
-                        <div class="mt-4 flex gap-2 pt-3 border-t border-gray-100">
-                            <button data-product-id="${p.id}" class="btn-edit-product flex-1 bg-gray-100 text-gray-700 text-xs font-semibold py-2 rounded-xl hover:bg-gray-200 transition">Editar</button>
-                            <button data-product-id="${p.id}" class="btn-delete-product px-3 py-2 rounded-xl text-white flex justify-center items-center transition ${inUse ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'}" ${inUse ? 'disabled' : ''}>🗑️</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderSelectOptions() {
-            const custSelect = document.getElementById('ord-customer');
-            custSelect.innerHTML = '<option value="">Selecciona un cliente...</option>' + 
-                state.customers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-
-            const prodSelect = document.getElementById('ord-product');
-            prodSelect.innerHTML = '<option value="">Selecciona un producto...</option>' + 
-                state.products.map(p => `<option value="${p.id}">${p.name} - ${formatCurrency(p.salePrice)}</option>`).join('');
-        }
-
-        // Lock / Unlock Screen Logic
-        document.getElementById('lock-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const inputPin = document.getElementById('pin-input').value;
-            const correctPin = state.settings.pin || '1234';
-            if (inputPin === correctPin) {
-                state.isLocked = false;
-                document.getElementById('lock-screen').classList.add('hidden');
-                document.getElementById('app-container').classList.remove('hidden');
-                document.getElementById('pin-error').classList.add('hidden');
-                document.getElementById('pin-input').value = '';
+                document.getElementById('ord-price-input').value = effectivePrice;
+                if (promoInfo.active) {
+                    promoBadge.classList.remove('hidden');
+                } else {
+                    promoBadge.classList.add('hidden');
+                }
             } else {
-                document.getElementById('pin-error').classList.remove('hidden');
-                document.getElementById('pin-input').value = '';
+                promoBadge.classList.add('hidden');
+                document.getElementById('ord-price-input').value = '';
             }
-        });
+            window.updateOrderImportPreview();
+        };
 
-        document.getElementById('btn-lock-desktop').addEventListener('click', () => {
-            document.getElementById('app-container').classList.add('hidden');
-            document.getElementById('lock-screen').classList.remove('hidden');
-        });
+        window.updateOrderImportPreview = () => {
+            const qty = Number(document.getElementById('ord-quantity-input').value || 1);
+            const price = Number(document.getElementById('ord-price-input').value || 0);
+            document.getElementById('ord-import-preview').textContent = window.formatCurrency(qty * price);
+        };
 
-        document.getElementById('btn-lock-mobile').addEventListener('click', () => {
-            document.getElementById('app-container').classList.add('hidden');
-            document.getElementById('lock-screen').classList.remove('hidden');
-        });
-
-        document.getElementById('btn-toggle-menu').addEventListener('click', () => {
-            const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('hidden');
-            sidebar.classList.toggle('block');
-        });
-
-        // Navigation Tabs
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-        });
-
-        // Modals Toggle
-        document.querySelectorAll('.btn-close-modal').forEach(btn => {
-            btn.addEventListener('click', () => {
-                btn.closest('.fixed').classList.add('hidden');
-                btn.closest('.fixed').classList.remove('flex');
-            });
-        });
-
-        // Open Forms Modals
-        document.getElementById('btn-open-product-modal').addEventListener('click', () => {
-            document.getElementById('modal-product-title').textContent = "Nuevo Producto";
-            document.getElementById('form-product').reset();
-            document.getElementById('product-id').value = '';
-            document.getElementById('modal-product').classList.remove('hidden');
-            document.getElementById('modal-product').classList.add('flex');
-        });
-
-        document.getElementById('btn-open-customer-modal').addEventListener('click', () => {
-            document.getElementById('modal-customer-title').textContent = "Nuevo Cliente";
-            document.getElementById('form-customer').reset();
-            document.getElementById('customer-id').value = '';
-            document.getElementById('modal-customer').classList.remove('hidden');
-            document.getElementById('modal-customer').classList.add('flex');
-        });
-
-        document.getElementById('btn-open-order-modal').addEventListener('click', () => {
-            document.getElementById('form-order').reset();
-            document.getElementById('ord-preview-total').classList.add('hidden');
-            document.getElementById('modal-order').classList.remove('hidden');
-            document.getElementById('modal-order').classList.add('flex');
-        });
-
-        // Auto Price Fill in Order Modal
-        document.getElementById('ord-product').addEventListener('change', (e) => {
-            const prod = state.products.find(p => p.id === e.target.value);
-            if (prod) {
-                document.getElementById('ord-price').value = prod.salePrice;
-                updateOrderPreview();
-            }
-        });
-
-        document.getElementById('ord-qty').addEventListener('input', updateOrderPreview);
-        document.getElementById('ord-price').addEventListener('input', updateOrderPreview);
-
-        function updateOrderPreview() {
-            const qty = Number(document.getElementById('ord-qty').value || 1);
-            const price = Number(document.getElementById('ord-price').value || 0);
-            if (price > 0) {
-                document.getElementById('ord-preview-amount').textContent = formatCurrency(qty * price);
-                document.getElementById('ord-preview-total').classList.remove('hidden');
-            }
-        }
-
-        // Save Product
-        document.getElementById('form-product').addEventListener('submit', async (e) => {
+        window.handleCreateOrder = async (e) => {
             e.preventDefault();
-            const pId = document.getElementById('product-id').value;
-            const dataToSave = normalizeJSON('product', {
-                name: document.getElementById('prod-name').value,
-                description: document.getElementById('prod-desc').value,
-                costPrice: Number(document.getElementById('prod-cost').value),
-                salePrice: Number(document.getElementById('prod-sale').value)
-            });
+            const customerId = document.getElementById('ord-customer-select').value;
+            const productId = document.getElementById('ord-product-select').value;
+            const quantity = Number(document.getElementById('ord-quantity-input').value);
+            const finalPrice = Number(document.getElementById('ord-price-input').value);
 
-            try {
-                if (pId) {
-                    await updateDoc(doc(db, dbCollectionPath('products'), pId), dataToSave);
-                    showToast('Producto actualizado');
-                } else {
-                    await addDoc(collection(db, dbCollectionPath('products')), dataToSave);
-                    showToast('Producto creado');
-                }
-                document.getElementById('modal-product').classList.add('hidden');
-            } catch (err) {
-                showToast('Error al guardar producto', 'error');
-            }
-        });
+            const product = getActiveProducts().find(p => p.id === productId);
+            const customer = getActiveCustomers().find(c => c.id === customerId);
+            if (!product || !customer) return;
 
-        // Save Customer
-        document.getElementById('form-customer').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const cId = document.getElementById('customer-id').value;
-            const dataToSave = normalizeJSON('customer', {
-                name: document.getElementById('cust-name').value,
-                phone: document.getElementById('cust-phone').value,
-                address: document.getElementById('cust-address').value
-            });
-
-            try {
-                if (cId) {
-                    await updateDoc(doc(db, dbCollectionPath('customers'), cId), dataToSave);
-                    showToast('Cliente actualizado');
-                } else {
-                    await addDoc(collection(db, dbCollectionPath('customers')), dataToSave);
-                    showToast('Cliente registrado');
-                }
-                document.getElementById('modal-customer').classList.add('hidden');
-            } catch (err) {
-                showToast('Error al guardar cliente', 'error');
-            }
-        });
-
-        // Create Order (With Double Auto-Merge: Customer Order + Same Product)
-        document.getElementById('form-order').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const customerId = document.getElementById('ord-customer').value;
-            const productId = document.getElementById('ord-product').value;
-            const quantity = Number(document.getElementById('ord-qty').value);
-            const finalPrice = Number(document.getElementById('ord-price').value);
-
-            const product = state.products.find(p => p.id === productId);
-            if (!product) return;
-
-            const currentTimeStr = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            const timeNow = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
             const newItem = {
-                id: Date.now().toString(),
-                productId,
+                id: 'item_' + Date.now(),
+                productId: product.id,
                 productName: product.name,
-                quantity,
-                finalPrice,
-                originalPrice: Number(product.salePrice),
-                timestamp: currentTimeStr
+                quantity: quantity,
+                finalPrice: finalPrice,
+                originalPrice: Number(product.salePrice || finalPrice),
+                timestamp: timeNow
             };
 
-            const existingOpenOrder = state.orders.find(o => {
-                if (o.customerId !== customerId) return false;
-                return getOrderTotalPaid(o) < getOrderTotal(o);
+            const existingOpenOrder = getActiveOrders().find(o => {
+                if (o.customerId !== customerId || o.archived) return false;
+                return window.getOrderTotalPaid(o) < window.getOrderTotal(o);
             });
 
-            try {
-                if (existingOpenOrder) {
-                    const existingItems = getOrderItems(existingOpenOrder);
-                    const sameItemIdx = existingItems.findIndex(i => i.productId === productId && Number(i.finalPrice) === finalPrice);
+            if (existingOpenOrder) {
+                const existingItems = window.getOrderItems(existingOpenOrder);
+                const existingIndex = existingItems.findIndex(i => i.productId === productId && Number(i.finalPrice) === finalPrice);
 
-                    let updatedItems;
-                    if (sameItemIdx > -1) {
-                        updatedItems = existingItems.map((item, idx) => {
-                            if (idx === sameItemIdx) {
-                                return {
-                                    ...item,
-                                    quantity: Number(item.quantity) + quantity,
-                                    timestamp: currentTimeStr
-                                };
-                            }
-                            return item;
-                        });
-                        showToast(`Sumado +${quantity} a ${product.name}`);
-                    } else {
-                        updatedItems = [...existingItems, newItem];
-                        showToast(`Agregado a pedido existente (${currentTimeStr})`);
-                    }
+                let updatedItems;
+                if (existingIndex > -1) {
+                    updatedItems = existingItems.map((item, idx) => {
+                        if (idx === existingIndex) {
+                            return { ...item, quantity: item.quantity + quantity, timestamp: timeNow };
+                        }
+                        return item;
+                    });
+                } else {
+                    updatedItems = [...existingItems, newItem];
+                }
 
+                if (window.state.isSandbox) {
+                    existingOpenOrder.items = updatedItems;
+                    window.showToast(`Producto agregado a pedido activo de ${customer.name}`);
+                    window.renderAllViews();
+                } else {
                     await updateDoc(doc(db, dbCollectionPath('orders'), existingOpenOrder.id), {
-                        items: normalizeJSON('order_items', updatedItems)
+                        items: window.normalizeJSON('items', updatedItems)
                     });
-                } else {
-                    const newOrder = normalizeJSON('order', {
-                        customerId,
-                        items: [newItem],
-                        createdAt: new Date().toISOString(),
-                        payments: []
-                    });
-                    await addDoc(collection(db, dbCollectionPath('orders')), newOrder);
-                    showToast('Nuevo pedido creado');
+                    window.showToast(`Producto agregado a pedido activo de ${customer.name}`);
                 }
-                document.getElementById('modal-order').classList.add('hidden');
-            } catch (err) {
-                showToast('Error al guardar pedido', 'error');
-            }
-        });
-
-        // Delegate Dynamic Click Actions (Remove Item, Delete Customer, Payments Modal, Ticket Modal)
-        document.addEventListener('click', async (e) => {
-            const btnRemoveItem = e.target.closest('.btn-remove-item');
-            if (btnRemoveItem) {
-                const orderId = btnRemoveItem.dataset.orderId;
-                const itemId = btnRemoveItem.dataset.itemId;
-                const order = state.orders.find(o => o.id === orderId);
-                if (!order) return;
-
-                const items = getOrderItems(order);
-                if (items.length <= 1) {
-                    await deleteDoc(doc(db, dbCollectionPath('orders'), orderId));
-                    showToast('Pedido eliminado al quedarse sin productos');
-                } else {
-                    const updatedItems = items.filter(i => i.id !== itemId);
-                    await updateDoc(doc(db, dbCollectionPath('orders'), orderId), {
-                        items: normalizeJSON('order_items', updatedItems)
-                    });
-                    showToast('Producto removido del pedido');
-                }
-            }
-
-            const btnEditCustomer = e.target.closest('.btn-edit-customer');
-            if (btnEditCustomer) {
-                const c = state.customers.find(cust => cust.id === btnEditCustomer.dataset.customerId);
-                if (c) {
-                    document.getElementById('modal-customer-title').textContent = "Editar Cliente";
-                    document.getElementById('customer-id').value = c.id;
-                    document.getElementById('cust-name').value = c.name || '';
-                    document.getElementById('cust-phone').value = c.phone || '';
-                    document.getElementById('cust-address').value = c.address || '';
-                    document.getElementById('modal-customer').classList.remove('hidden');
-                    document.getElementById('modal-customer').classList.add('flex');
-                }
-            }
-
-            const btnDeleteCustomer = e.target.closest('.btn-delete-customer');
-            if (btnDeleteCustomer) {
-                const cId = btnDeleteCustomer.dataset.customerId;
-                if (state.orders.some(o => o.customerId === cId)) {
-                    showToast('No se puede eliminar: Cliente tiene pedidos activos', 'error');
-                    return;
-                }
-                await deleteDoc(doc(db, dbCollectionPath('customers'), cId));
-                showToast('Cliente eliminado');
-            }
-
-            const btnEditProduct = e.target.closest('.btn-edit-product');
-            if (btnEditProduct) {
-                const p = state.products.find(prod => prod.id === btnEditProduct.dataset.productId);
-                if (p) {
-                    document.getElementById('modal-product-title').textContent = "Editar Producto";
-                    document.getElementById('product-id').value = p.id;
-                    document.getElementById('prod-name').value = p.name || '';
-                    document.getElementById('prod-desc').value = p.description || '';
-                    document.getElementById('prod-cost').value = p.costPrice || '';
-                    document.getElementById('prod-sale').value = p.salePrice || '';
-                    document.getElementById('modal-product').classList.remove('hidden');
-                    document.getElementById('modal-product').classList.add('flex');
-                }
-            }
-
-            const btnDeleteProduct = e.target.closest('.btn-delete-product');
-            if (btnDeleteProduct) {
-                const pId = btnDeleteProduct.dataset.productId;
-                if (state.orders.some(o => getOrderItems(o).some(item => item.productId === pId))) {
-                    showToast('No se puede eliminar: Producto en uso en pedidos', 'error');
-                    return;
-                }
-                await deleteDoc(doc(db, dbCollectionPath('products'), pId));
-                showToast('Producto eliminado');
-            }
-
-            const btnPayments = e.target.closest('.btn-open-payments');
-            if (btnPayments) {
-                const order = state.orders.find(o => o.id === btnPayments.dataset.orderId);
-                if (order) {
-                    state.currentOrder = order;
-                    renderPaymentsModal();
-                    document.getElementById('modal-payments').classList.remove('hidden');
-                    document.getElementById('modal-payments').classList.add('flex');
-                }
-            }
-
-            const btnTicket = e.target.closest('.btn-open-ticket');
-            if (btnTicket) {
-                const order = state.orders.find(o => o.id === btnTicket.dataset.orderId);
-                if (order) {
-                    renderTicketModal(order);
-                    document.getElementById('modal-ticket').classList.remove('hidden');
-                    document.getElementById('modal-ticket').classList.add('flex');
-                }
-            }
-
-            const btnDeletePayment = e.target.closest('.btn-delete-payment');
-            if (btnDeletePayment) {
-                const pId = btnDeletePayment.dataset.paymentId;
-                const updatedPayments = (state.currentOrder.payments || []).filter(p => p.id !== pId);
-                await updateDoc(doc(db, dbCollectionPath('orders'), state.currentOrder.id), {
-                    payments: normalizeJSON('payments', updatedPayments)
+            } else {
+                const newOrderData = window.normalizeJSON('order', {
+                    customerId,
+                    items: [newItem],
+                    createdAt: new Date().toISOString(),
+                    payments: [],
+                    archived: false
                 });
-                state.currentOrder.payments = updatedPayments;
-                renderPaymentsModal();
-                showToast('Abono eliminado');
+
+                if (window.state.isSandbox) {
+                    window.state.sandboxData.orders.unshift({ id: 'ord_' + Date.now(), ...newOrderData });
+                    window.showToast(`Nuevo pedido registrado para ${customer.name}`);
+                    window.renderAllViews();
+                } else {
+                    await addDoc(collection(db, dbCollectionPath('orders')), newOrderData);
+                    window.showToast(`Nuevo pedido registrado para ${customer.name}`);
+                }
             }
-        });
 
-        function renderPaymentsModal() {
-            const order = state.currentOrder;
+            await window.logActivity('pedido', 'crear', `Producto en Pedido: ${product.name}`, `Cliente: ${customer.name} | Cantidad: ${quantity} | Precio: ${window.formatCurrency(finalPrice)}`);
+            window.closeModal('order-modal');
+        };
+
+        window.removeItemFromOrder = async (orderId, itemId) => {
+            const order = getActiveOrders().find(o => o.id === orderId);
             if (!order) return;
+            const items = window.getOrderItems(order);
 
-            const total = getOrderTotal(order);
-            const paid = getOrderTotalPaid(order);
+            if (items.length <= 1) {
+                if (window.state.isSandbox) {
+                    window.state.sandboxData.orders = window.state.sandboxData.orders.filter(o => o.id !== orderId);
+                    window.renderAllViews();
+                } else {
+                    await deleteDoc(doc(db, dbCollectionPath('orders'), orderId));
+                }
+                window.showToast('Pedido eliminado por quedarse sin productos');
+            } else {
+                const updatedItems = items.filter(i => i.id !== itemId);
+                if (window.state.isSandbox) {
+                    order.items = updatedItems;
+                    window.renderAllViews();
+                } else {
+                    await updateDoc(doc(db, dbCollectionPath('orders'), orderId), {
+                        items: window.normalizeJSON('items', updatedItems)
+                    });
+                }
+                window.showToast('Producto removido del pedido');
+            }
+        };
+
+        window.toggleArchiveOrder = async (orderId) => {
+            const order = getActiveOrders().find(o => o.id === orderId);
+            if (!order) return;
+            const newStatus = !order.archived;
+
+            if (window.state.isSandbox) {
+                order.archived = newStatus;
+                window.renderOrders();
+            } else {
+                await updateDoc(doc(db, dbCollectionPath('orders'), orderId), { archived: newStatus });
+            }
+            window.showToast(newStatus ? 'Pedido archivado' : 'Pedido desarchivado');
+            await window.logActivity('pedido', 'archivar', `${newStatus ? 'Archivado' : 'Desarchivado'} de Pedido`, `Pedido ID: ${orderId}`);
+        };
+
+        // Payment Modal & Logic
+        window.openPaymentModal = (orderId) => {
+            const order = getActiveOrders().find(o => o.id === orderId);
+            if (!order) return;
+            window.state.currentOrder = order;
+
+            const total = window.getOrderTotal(order);
+            const paid = window.getOrderTotalPaid(order);
             const pending = Math.max(0, total - paid);
 
-            document.getElementById('payment-summary').innerHTML = `
+            document.getElementById('payment-modal-summary').innerHTML = `
                 <div class="flex justify-between text-xs">
                     <div>
-                        <p class="text-gray-500 uppercase font-semibold">Total Pedido</p>
-                        <p class="font-bold text-base">${formatCurrency(total)}</p>
+                        <p class="text-slate-500 uppercase font-bold">Total Pedido</p>
+                        <p class="font-black text-sm">${window.formatCurrency(total)}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-gray-500 uppercase font-semibold">Saldo Pendiente</p>
-                        <p class="font-bold text-base text-amber-600">${formatCurrency(pending)}</p>
+                        <p class="text-slate-500 uppercase font-bold">Pendiente</p>
+                        <p class="font-black text-sm text-amber-600">${window.formatCurrency(pending)}</p>
                     </div>
                 </div>
             `;
 
-            const list = document.getElementById('payments-list');
-            const payments = order.payments || [];
-            if (payments.length === 0) {
-                list.innerHTML = `<p class="text-gray-400 text-center py-4 text-xs">No hay abonos registrados para este pedido.</p>`;
+            const listContainer = document.getElementById('payment-modal-list');
+            if ((order.payments || []).length === 0) {
+                listContainer.innerHTML = `<p class="text-xs text-slate-400 text-center py-3">No hay abonos registrados.</p>`;
             } else {
-                list.innerHTML = payments.map(p => `
-                    <div class="flex justify-between items-center p-3 border rounded-xl hover:bg-gray-50">
+                listContainer.innerHTML = (order.payments || []).map(p => `
+                    <div class="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border text-xs">
                         <div>
-                            <p class="font-bold text-gray-800 text-sm">${formatCurrency(p.amount)}</p>
-                            <p class="text-[10px] text-gray-400">${formatDate(p.date)}</p>
+                            <p class="font-bold text-slate-800">${window.formatCurrency(p.amount)}</p>
+                            <p class="text-[10px] text-slate-400">${window.formatDate(p.date)}</p>
                         </div>
-                        <button data-payment-id="${p.id}" class="btn-delete-payment text-gray-400 hover:text-red-500 p-1">🗑️</button>
+                        <button onclick="window.deletePayment('${p.id}')" class="text-slate-400 hover:text-red-500 font-bold px-2">✕</button>
                     </div>
                 `).join('');
             }
-        }
 
-        document.getElementById('form-payment').addEventListener('submit', async (e) => {
+            document.getElementById('payment-modal').classList.remove('hidden');
+        };
+
+        window.handleAddPayment = async (e) => {
             e.preventDefault();
-            if (!state.currentOrder) return;
-            const amount = Number(document.getElementById('pay-amount').value);
-            if (amount <= 0) return;
+            const order = window.state.currentOrder;
+            const amount = Number(document.getElementById('payment-amount-input').value);
+            if (!order || amount <= 0) return;
 
-            const newPayment = {
-                id: Date.now().toString(),
-                amount,
-                date: new Date().toISOString()
-            };
+            const newPayment = { id: 'pay_' + Date.now(), amount, date: new Date().toISOString() };
+            const updatedPayments = [...(order.payments || []), newPayment];
 
-            const updatedPayments = [...(state.currentOrder.payments || []), newPayment];
-            await updateDoc(doc(db, dbCollectionPath('orders'), state.currentOrder.id), {
-                payments: normalizeJSON('payments', updatedPayments)
-            });
-            state.currentOrder.payments = updatedPayments;
-            document.getElementById('pay-amount').value = '';
-            renderPaymentsModal();
-            showToast('Abono registrado');
-        });
+            if (window.state.isSandbox) {
+                order.payments = updatedPayments;
+                window.renderAllViews();
+            } else {
+                await updateDoc(doc(db, dbCollectionPath('orders'), order.id), {
+                    payments: window.normalizeJSON('payments', updatedPayments)
+                });
+            }
 
-        function renderTicketModal(order) {
-            const customer = state.customers.find(c => c.id === order.customerId);
-            const items = getOrderItems(order);
-            const total = getOrderTotal(order);
-            const paid = getOrderTotalPaid(order);
+            window.showToast('Abono registrado correctamente');
+            await window.logActivity('abono', 'agregar', `Abono de ${window.formatCurrency(amount)}`, `Pedido ID: ${order.id}`);
+            document.getElementById('payment-amount-input').value = '';
+            window.openPaymentModal(order.id);
+        };
+
+        window.deletePayment = async (paymentId) => {
+            const order = window.state.currentOrder;
+            if (!order) return;
+
+            const updatedPayments = (order.payments || []).filter(p => p.id !== paymentId);
+
+            if (window.state.isSandbox) {
+                order.payments = updatedPayments;
+                window.renderAllViews();
+            } else {
+                await updateDoc(doc(db, dbCollectionPath('orders'), order.id), {
+                    payments: window.normalizeJSON('payments', updatedPayments)
+                });
+            }
+
+            window.showToast('Abono eliminado');
+            await window.logActivity('abono', 'eliminar', 'Abono eliminado', `Abono ID: ${paymentId}`);
+            window.openPaymentModal(order.id);
+        };
+
+        // Ticket Logic
+        window.openTicketModal = (orderId) => {
+            const order = getActiveOrders().find(o => o.id === orderId);
+            if (!order) return;
+            window.state.currentOrder = order;
+
+            const settings = getActiveSettings();
+            const customer = getActiveCustomers().find(c => c.id === order.customerId);
+            const items = window.getOrderItems(order);
+            const total = window.getOrderTotal(order);
+            const paid = window.getOrderTotalPaid(order);
             const pending = Math.max(0, total - paid);
 
             document.getElementById('printable-ticket').innerHTML = `
-                <div class="text-center border-b border-dashed pb-3">
-                    <h2 class="text-lg font-bold uppercase">${state.settings.name || 'Mi Negocio'}</h2>
-                    <p>${state.settings.address || ''}</p>
-                    <p>Tel: ${state.settings.phone || ''}</p>
-                    <p class="mt-1 text-[10px] text-gray-400">${formatDate(order.createdAt)}</p>
-                </div>
-                
-                <div>
-                    <p><span class="font-bold">Cliente:</span> ${customer ? customer.name : 'N/A'}</p>
+                <div class="text-center border-b border-dashed border-slate-300 pb-3">
+                    <h2 class="text-base font-black uppercase tracking-wider">${settings.name || 'Mi Negocio'}</h2>
+                    <p class="text-[10px] text-slate-500">${settings.address || ''}</p>
+                    <p class="text-[10px] text-slate-500">Tel: ${settings.phone || 'N/A'}</p>
+                    <p class="mt-1 text-[9px] text-slate-400">${window.formatDate(order.createdAt)}</p>
                 </div>
 
-                <div class="border-b border-dashed pb-3 space-y-2">
-                    <div class="flex justify-between font-bold text-[11px]">
-                        <span>Cant / Descrip.</span>
+                <div class="text-xs">
+                    <p><span class="font-bold">Cliente:</span> ${customer ? customer.name : 'N/A'}</p>
+                    ${customer && customer.phone ? `<p><span class="font-bold">Tel:</span> ${customer.phone}</p>` : ''}
+                </div>
+
+                <div class="border-b border-dashed border-slate-300 pb-3 space-y-1">
+                    <div class="flex justify-between font-bold text-[11px] uppercase border-b pb-1">
+                        <span>Cant / Producto</span>
                         <span>Importe</span>
                     </div>
                     ${items.map(item => {
                         const savings = (item.originalPrice - item.finalPrice) * item.quantity;
                         return `
-                            <div class="space-y-0.5">
-                                <div class="flex justify-between">
-                                    <span>${item.quantity}x ${item.productName || state.products.find(p => p.id === item.productId)?.name || 'Prod'} <span class="text-[9px] text-gray-400">(${item.timestamp})</span></span>
-                                    <span>${formatCurrency(item.finalPrice * item.quantity)}</span>
+                            <div class="space-y-0.5 pt-1">
+                                <div class="flex justify-between text-xs">
+                                    <span>${item.quantity}x ${item.productName} <span class="text-[9px] text-slate-400">(${item.timestamp})</span></span>
+                                    <span>${window.formatCurrency(item.finalPrice * item.quantity)}</span>
                                 </div>
-                                ${savings > 0 ? `<p class="text-[10px] text-emerald-600 font-sans">Ahorraste: ${formatCurrency(savings)}</p>` : ''}
+                                ${savings > 0 ? `<p class="text-[9px] text-emerald-600 font-bold">¡Ahorraste ${window.formatCurrency(savings)}!</p>` : ''}
                             </div>
                         `;
                     }).join('')}
                 </div>
 
-                <div class="space-y-1 text-right">
-                    <p class="text-base font-bold">Total: ${formatCurrency(total)}</p>
-                    <p class="text-gray-500">Abonado: ${formatCurrency(paid)}</p>
-                    <p class="font-bold border-t border-dashed pt-1 mt-1">Pendiente: ${formatCurrency(pending)}</p>
-                    <p class="mt-2 font-bold uppercase ${pending === 0 ? 'text-emerald-600' : 'text-amber-600'} text-center text-sm tracking-wider">
-                        ${pending === 0 ? 'PAGADO' : 'PENDIENTE'}
+                <div class="space-y-1 text-right text-xs">
+                    <p class="text-sm font-black">Total: ${window.formatCurrency(total)}</p>
+                    <p class="text-slate-500">Abonado: ${window.formatCurrency(paid)}</p>
+                    <p class="font-bold border-t border-dashed pt-1">Pendiente: ${window.formatCurrency(pending)}</p>
+                    <p class="mt-2 text-center text-xs font-black uppercase tracking-widest py-1 rounded-lg ${pending === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                        ${pending === 0 ? 'PAGADO EN LIQUIDADO' : 'PENDIENTE DE PAGO'}
                     </p>
                 </div>
 
-                ${(order.payments || []).length > 0 ? `
-                    <div class="text-[10px] text-gray-500 border-t border-dashed pt-2">
-                        <p class="font-bold mb-1">Historial de Abonos:</p>
-                        ${order.payments.map(p => `
-                            <div class="flex justify-between">
-                                <span>${new Date(p.date).toLocaleDateString()} ${formatTime(p.date)}</span>
-                                <span>${formatCurrency(p.amount)}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-
-                <div class="text-center text-[10px] text-gray-400 pt-2">
+                <div class="text-center text-[10px] text-slate-400 pt-2 border-t border-dashed">
                     ¡Gracias por su compra!
                 </div>
             `;
-        }
 
-        document.getElementById('settings-form').addEventListener('submit', async (e) => {
+            document.getElementById('ticket-modal').classList.remove('hidden');
+        };
+
+        window.printTicket = () => window.print();
+
+        window.shareTicketWhatsApp = () => {
+            const order = window.state.currentOrder;
+            if (!order) return;
+
+            const settings = getActiveSettings();
+            const customer = getActiveCustomers().find(c => c.id === order.customerId);
+            const items = window.getOrderItems(order);
+            const total = window.getOrderTotal(order);
+            const paid = window.getOrderTotalPaid(order);
+            const pending = Math.max(0, total - paid);
+
+            let msg = `Hola *${customer ? customer.name : 'Cliente'}* 👋, aquí está el resumen de tu pedido en *${settings.name || 'Mi Negocio'}*:\n\n`;
+            items.forEach(i => {
+                msg += `- ${i.quantity}x ${i.productName} (${window.formatCurrency(i.finalPrice * i.quantity)})\n`;
+            });
+            msg += `\n*Total:* ${window.formatCurrency(total)}\n`;
+            msg += `*Abonado:* ${window.formatCurrency(paid)}\n`;
+            msg += `*Pendiente:* *${window.formatCurrency(pending)}*\n\n`;
+            msg += `¡Gracias por tu compra!`;
+
+            const phoneClean = customer && customer.phone ? customer.phone.replace(/\D/g, '') : '';
+            const url = phoneClean 
+                ? `https://wa.me/${phoneClean}?text=${encodeURIComponent(msg)}`
+                : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+
+            window.open(url, '_blank');
+        };
+
+        // Render Customers
+        window.renderCustomers = () => {
+            let customers = getActiveCustomers();
+            const orders = getActiveOrders();
+
+            if (window.state.custSearchQuery.trim()) {
+                const q = window.state.custSearchQuery.toLowerCase();
+                customers = customers.filter(c => c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q)));
+            }
+
+            const grid = document.getElementById('customers-grid');
+            if (customers.length === 0) {
+                grid.innerHTML = `<div class="col-span-full bg-white p-8 rounded-2xl text-center text-slate-400 text-xs border">No hay clientes registrados.</div>`;
+                return;
+            }
+
+            grid.innerHTML = customers.map(c => {
+                const cOrders = orders.filter(o => o.customerId === c.id);
+                const totalSpent = cOrders.reduce((sum, o) => sum + window.getOrderTotal(o), 0);
+
+                return `
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition">
+                        <div>
+                            <h3 class="font-bold text-base text-slate-800">${c.name}</h3>
+                            <p class="text-xs text-slate-500 mt-1">📞 ${c.phone || 'Sin teléfono'}</p>
+                            <p class="text-xs text-slate-500 mt-1">📍 ${c.address || 'Sin dirección'}</p>
+
+                            <div class="mt-4 bg-indigo-50/60 p-3 rounded-xl border border-indigo-100/50 text-xs space-y-1">
+                                <div class="flex justify-between"><span class="text-indigo-900 font-medium">Pedidos:</span> <span class="font-bold text-indigo-900">${cOrders.length}</span></div>
+                                <div class="flex justify-between"><span class="text-indigo-900 font-medium">Acumulado:</span> <span class="font-bold text-indigo-900">${window.formatCurrency(totalSpent)}</span></div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 flex gap-2 pt-3 border-t">
+                            <button onclick="window.openCustomerModal('${c.id}')" class="flex-1 bg-slate-100 text-slate-700 py-2 rounded-xl text-xs font-semibold hover:bg-slate-200 transition">Editar</button>
+                            <button onclick="window.deleteCustomer('${c.id}')" ${cOrders.length > 0 ? 'disabled class="px-3 py-2 bg-slate-100 text-slate-300 rounded-xl cursor-not-allowed"' : 'class="px-3 py-2 bg-red-500 text-white hover:bg-red-600 rounded-xl transition"'}>🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.openCustomerModal = (customerId = null) => {
+            const modal = document.getElementById('customer-modal');
+            if (customerId) {
+                const c = getActiveCustomers().find(cust => cust.id === customerId);
+                if (c) {
+                    document.getElementById('cust-id-hidden').value = c.id;
+                    document.getElementById('cust-name-input').value = c.name;
+                    document.getElementById('cust-phone-input').value = c.phone || '';
+                    document.getElementById('cust-address-input').value = c.address || '';
+                    document.getElementById('customer-modal-title').textContent = "Editar Cliente";
+                }
+            } else {
+                document.getElementById('cust-id-hidden').value = '';
+                document.getElementById('cust-name-input').value = '';
+                document.getElementById('cust-phone-input').value = '';
+                document.getElementById('cust-address-input').value = '';
+                document.getElementById('customer-modal-title').textContent = "Nuevo Cliente";
+            }
+            modal.classList.remove('hidden');
+        };
+
+        window.handleSaveCustomer = async (e) => {
             e.preventDefault();
+            const id = document.getElementById('cust-id-hidden').value;
+            const name = document.getElementById('cust-name-input').value;
+            const phone = document.getElementById('cust-phone-input').value;
+            const address = document.getElementById('cust-address-input').value;
+
+            const custData = window.normalizeJSON('customer', { name, phone, address });
+
+            if (id) {
+                if (window.state.isSandbox) {
+                    const idx = window.state.sandboxData.customers.findIndex(c => c.id === id);
+                    if (idx > -1) window.state.sandboxData.customers[idx] = { id, ...custData };
+                    window.renderCustomers();
+                } else {
+                    await updateDoc(doc(db, dbCollectionPath('customers'), id), custData);
+                }
+                window.showToast('Cliente actualizado');
+            } else {
+                if (window.state.isSandbox) {
+                    window.state.sandboxData.customers.push({ id: 'cust_' + Date.now(), ...custData });
+                    window.renderCustomers();
+                } else {
+                    await addDoc(collection(db, dbCollectionPath('customers')), custData);
+                }
+                window.showToast('Cliente registrado');
+            }
+
+            await window.logActivity('cliente', id ? 'editar' : 'crear', `Cliente: ${name}`, `Tel: ${phone}`);
+            window.closeModal('customer-modal');
+        };
+
+        window.deleteCustomer = async (customerId) => {
+            const hasOrders = getActiveOrders().some(o => o.customerId === customerId);
+            if (hasOrders) {
+                window.showToast('No se puede borrar: El cliente tiene pedidos en el historial.', 'error');
+                return;
+            }
+
+            if (window.state.isSandbox) {
+                window.state.sandboxData.customers = window.state.sandboxData.customers.filter(c => c.id !== customerId);
+                window.renderCustomers();
+            } else {
+                await deleteDoc(doc(db, dbCollectionPath('customers'), customerId));
+            }
+            window.showToast('Cliente eliminado');
+            await window.logActivity('cliente', 'eliminar', 'Cliente eliminado', `ID: ${customerId}`);
+        };
+
+        window.handleCustomerSearch = (q) => {
+            window.state.custSearchQuery = q;
+            window.renderCustomers();
+        };
+
+        // Render Products
+        window.renderProducts = () => {
+            let products = getActiveProducts();
+            const orders = getActiveOrders();
+
+            if (window.state.prodCategoryFilter) {
+                products = products.filter(p => p.category === window.state.prodCategoryFilter);
+            }
+
+            if (window.state.prodSearchQuery.trim()) {
+                const q = window.state.prodSearchQuery.toLowerCase();
+                products = products.filter(p => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)));
+            }
+
+            const grid = document.getElementById('products-grid');
+            if (products.length === 0) {
+                grid.innerHTML = `<div class="col-span-full bg-white p-8 rounded-2xl text-center text-slate-400 text-xs border">No hay productos en el catálogo.</div>`;
+                return;
+            }
+
+            grid.innerHTML = products.map(p => {
+                const inUse = orders.some(o => window.getOrderItems(o).some(i => i.productId === p.id));
+                const promoInfo = window.getPromoStatus(p);
+                const effectivePrice = window.getEffectivePrice(p);
+
+                return `
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition">
+                        <div>
+                            <div class="flex justify-between items-start gap-2">
+                                <h3 class="font-bold text-base text-slate-800">${p.name}</h3>
+                                ${p.category ? `<span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">${p.category}</span>` : ''}
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1 line-clamp-2">${p.description || 'Sin descripción'}</p>
+
+                            ${promoInfo.status !== 'none' ? `
+                                <div class="mt-3 text-[10px] font-bold px-2.5 py-1 rounded-xl flex justify-between items-center ${promoInfo.active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">
+                                    <span>${promoInfo.label}</span>
+                                    ${promoInfo.active ? `<button onclick="window.removePromo('${p.id}')" class="text-red-600 hover:underline">Quitar Oferta</button>` : ''}
+                                </div>
+                            ` : ''}
+
+                            <div class="mt-3 space-y-1 bg-slate-50 p-3 rounded-xl border text-xs">
+                                <div class="flex justify-between"><span class="text-slate-500">Costo Proveedor:</span> <span class="font-medium">${window.formatCurrency(p.costPrice)}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-500">Precio Normal:</span> <span class="font-bold ${promoInfo.active ? 'line-through text-slate-400' : 'text-slate-800'}">${window.formatCurrency(p.salePrice)}</span></div>
+                                ${promoInfo.active ? `<div class="flex justify-between"><span class="text-emerald-700 font-bold">Precio Oferta:</span> <span class="font-black text-emerald-600">${window.formatCurrency(effectivePrice)}</span></div>` : ''}
+                            </div>
+                        </div>
+
+                        <div class="mt-4 flex gap-2 pt-3 border-t">
+                            <button onclick="window.openProductModal('${p.id}')" class="flex-1 bg-slate-100 text-slate-700 py-2 rounded-xl text-xs font-semibold hover:bg-slate-200 transition">Editar / Oferta</button>
+                            <button onclick="window.deleteProduct('${p.id}')" ${inUse ? 'disabled class="px-3 py-2 bg-slate-100 text-slate-300 rounded-xl cursor-not-allowed"' : 'class="px-3 py-2 bg-red-500 text-white hover:bg-red-600 rounded-xl transition"'}>🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.openProductModal = (productId = null) => {
+            const modal = document.getElementById('product-modal');
+            if (productId) {
+                const p = getActiveProducts().find(prod => prod.id === productId);
+                if (p) {
+                    document.getElementById('prod-id-hidden').value = p.id;
+                    document.getElementById('prod-name-input').value = p.name;
+                    document.getElementById('prod-category-input').value = p.category || '';
+                    document.getElementById('prod-desc-input').value = p.description || '';
+                    document.getElementById('prod-cost-input').value = p.costPrice || '';
+                    document.getElementById('prod-sale-input').value = p.salePrice || '';
+                    document.getElementById('prod-promo-mode').value = p.promoMode || 'none';
+                    document.getElementById('prod-promo-price').value = p.promoPrice || '';
+                    document.getElementById('prod-promo-from').value = p.promoFrom || '';
+                    document.getElementById('prod-promo-until').value = p.promoUntil || '';
+                    document.getElementById('product-modal-title').textContent = "Editar Producto";
+                    window.togglePromoFields(p.promoMode || 'none');
+                }
+            } else {
+                document.getElementById('prod-id-hidden').value = '';
+                document.getElementById('prod-name-input').value = '';
+                document.getElementById('prod-category-input').value = '';
+                document.getElementById('prod-desc-input').value = '';
+                document.getElementById('prod-cost-input').value = '';
+                document.getElementById('prod-sale-input').value = '';
+                document.getElementById('prod-promo-mode').value = 'none';
+                document.getElementById('prod-promo-price').value = '';
+                document.getElementById('prod-promo-from').value = '';
+                document.getElementById('prod-promo-until').value = '';
+                document.getElementById('product-modal-title').textContent = "Nuevo Producto";
+                window.togglePromoFields('none');
+            }
+            window.calcProductMargins();
+            modal.classList.remove('hidden');
+        };
+
+        window.togglePromoFields = (mode) => {
+            const container = document.getElementById('promo-fields-container');
+            const startField = document.getElementById('promo-start-field');
+
+            if (mode === 'none') {
+                container.classList.add('hidden');
+            } else if (mode === 'right_now') {
+                container.classList.remove('hidden');
+                startField.classList.add('hidden');
+            } else if (mode === 'date_range') {
+                container.classList.remove('hidden');
+                startField.classList.remove('hidden');
+            }
+            window.calcProductMargins();
+        };
+
+        window.calcProductMargins = () => {
+            const cost = Number(document.getElementById('prod-cost-input').value || 0);
+            const sale = Number(document.getElementById('prod-sale-input').value || 0);
+            const promo = Number(document.getElementById('prod-promo-price').value || 0);
+
+            document.getElementById('margin-normal-val').textContent = window.formatCurrency(sale - cost);
+            document.getElementById('margin-promo-val').textContent = window.formatCurrency(promo - cost);
+        };
+
+        window.handleSaveProduct = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('prod-id-hidden').value;
+            const name = document.getElementById('prod-name-input').value;
+            const category = document.getElementById('prod-category-input').value;
+            const description = document.getElementById('prod-desc-input').value;
+            const costPrice = Number(document.getElementById('prod-cost-input').value);
+            const salePrice = Number(document.getElementById('prod-sale-input').value);
+            const promoMode = document.getElementById('prod-promo-mode').value;
+            const promoPrice = Number(document.getElementById('prod-promo-price').value || 0);
+            const promoFrom = document.getElementById('prod-promo-from').value;
+            const promoUntil = document.getElementById('prod-promo-until').value;
+
+            const prodData = window.normalizeJSON('product', {
+                name, category, description, costPrice, salePrice,
+                promoMode, promoPrice, promoFrom, promoUntil
+            });
+
+            if (id) {
+                if (window.state.isSandbox) {
+                    const idx = window.state.sandboxData.products.findIndex(p => p.id === id);
+                    if (idx > -1) window.state.sandboxData.products[idx] = { id, ...prodData };
+                    window.renderProducts();
+                } else {
+                    await updateDoc(doc(db, dbCollectionPath('products'), id), prodData);
+                }
+                window.showToast('Producto actualizado');
+            } else {
+                if (window.state.isSandbox) {
+                    window.state.sandboxData.products.push({ id: 'prod_' + Date.now(), ...prodData });
+                    window.renderProducts();
+                } else {
+                    await addDoc(collection(db, dbCollectionPath('products')), prodData);
+                }
+                window.showToast('Producto registrado');
+            }
+
+            await window.logActivity('producto', id ? 'editar' : 'crear', `Producto: ${name}`, `Precio Venta: ${window.formatCurrency(salePrice)} | Modo Oferta: ${promoMode}`);
+            window.closeModal('product-modal');
+        };
+
+        window.removePromo = async (productId) => {
+            const product = getActiveProducts().find(p => p.id === productId);
+            if (!product) return;
+
+            if (window.state.isSandbox) {
+                product.promoMode = 'none';
+                window.renderProducts();
+            } else {
+                await updateDoc(doc(db, dbCollectionPath('products'), productId), { promoMode: 'none' });
+            }
+            window.showToast('Oferta eliminada del producto');
+            await window.logActivity('producto', 'cancelar_oferta', `Oferta Cancelada: ${product.name}`, `Regresó a precio normal de ${window.formatCurrency(product.salePrice)}`);
+        };
+
+        window.deleteProduct = async (productId) => {
+            const inUse = getActiveOrders().some(o => window.getOrderItems(o).some(i => i.productId === productId));
+            if (inUse) {
+                window.showToast('No se puede borrar: Producto en uso en pedidos activos.', 'error');
+                return;
+            }
+
+            if (window.state.isSandbox) {
+                window.state.sandboxData.products = window.state.sandboxData.products.filter(p => p.id !== productId);
+                window.renderProducts();
+            } else {
+                await deleteDoc(doc(db, dbCollectionPath('products'), productId));
+            }
+            window.showToast('Producto eliminado');
+            await window.logActivity('producto', 'eliminar', 'Producto eliminado', `ID: ${productId}`);
+        };
+
+        window.handleProductSearch = (q) => {
+            window.state.prodSearchQuery = q;
+            window.renderProducts();
+        };
+
+        window.handleProductCategoryFilter = (cat) => {
+            window.state.prodCategoryFilter = cat;
+            window.renderProducts();
+        };
+
+        // Render Logs
+        window.renderLogs = () => {
+            let logs = getActiveLogs();
+
+            if (window.state.logCategoryFilter) {
+                logs = logs.filter(l => l.category === window.state.logCategoryFilter);
+            }
+
+            if (window.state.logSearchQuery.trim()) {
+                const q = window.state.logSearchQuery.toLowerCase();
+                logs = logs.filter(l => l.title.toLowerCase().includes(q) || (l.details && l.details.toLowerCase().includes(q)));
+            }
+
+            const container = document.getElementById('logs-timeline');
+            if (logs.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">No hay registros en la bitácora.</p>`;
+                return;
+            }
+
+            container.innerHTML = logs.map(l => `
+                <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                    <span class="text-base shrink-0">
+                        ${l.category === 'pedido' ? '📦' : l.category === 'abono' ? '💰' : l.category === 'producto' ? '🏷️' : l.category === 'cliente' ? '👤' : '⚙️'}
+                    </span>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center">
+                            <h4 class="font-bold text-slate-800">${l.title}</h4>
+                            <span class="text-[10px] text-slate-400 font-mono">${window.formatDate(l.timestamp)}</span>
+                        </div>
+                        <p class="text-slate-500 mt-0.5">${l.details}</p>
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        window.handleLogSearch = (q) => {
+            window.state.logSearchQuery = q;
+            window.renderLogs();
+        };
+
+        window.handleLogCategoryFilter = (cat) => {
+            window.state.logCategoryFilter = cat;
+            window.renderLogs();
+        };
+
+        // Render Settings Values
+        window.renderSettingsValues = () => {
+            const s = getActiveSettings();
+            document.getElementById('cfg-name').value = s.name || '';
+            document.getElementById('cfg-phone').value = s.phone || '';
+            document.getElementById('cfg-address').value = s.address || '';
+            document.getElementById('cfg-pin').value = s.pin || '1234';
+            document.getElementById('cfg-confirm-pin').value = s.pin || '1234';
+        };
+
+        window.saveSettings = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('cfg-name').value;
+            const phone = document.getElementById('cfg-phone').value;
+            const address = document.getElementById('cfg-address').value;
             const pin = document.getElementById('cfg-pin').value;
             const confirmPin = document.getElementById('cfg-confirm-pin').value;
 
             if (pin !== confirmPin) {
-                document.getElementById('pin-mismatch-msg').classList.remove('hidden');
-                showToast('Las llaves / PIN no coinciden', 'error');
+                window.showToast('Las llaves / PIN de seguridad no coinciden', 'error');
                 return;
             }
 
-            document.getElementById('pin-mismatch-msg').classList.add('hidden');
+            const cleanSettings = window.normalizeJSON('settings', { name, phone, address, pin });
 
-            const newSettings = normalizeJSON('settings', {
-                name: document.getElementById('cfg-name').value,
-                phone: document.getElementById('cfg-phone').value,
-                address: document.getElementById('cfg-address').value,
-                pin: pin || '1234'
-            });
-
-            try {
-                await setDoc(doc(db, dbCollectionPath('settings'), 'business_info'), newSettings);
-                showToast('Configuración guardada en Firebase');
-            } catch (err) {
-                showToast('Error al guardar configuración', 'error');
+            if (window.state.isSandbox) {
+                window.state.sandboxData.settings = cleanSettings;
+            } else {
+                await setDoc(doc(db, dbCollectionPath('settings'), 'business_info'), cleanSettings);
             }
-        });
 
-        document.getElementById('btn-export-json').addEventListener('click', () => {
+            window.showToast('Configuración guardada');
+            await window.logActivity('configuracion', 'editar', 'Configuración de Negocio Guardada', `Nombre: ${name} | PIN actualizado`);
+        };
+
+        // JSON Backup / Restore
+        window.exportDataJSON = () => {
             try {
                 const backup = {
-                    metadata: {
-                        appName: state.settings.name || "Mi Negocio",
-                        exportedAt: new Date().toISOString(),
-                        schemaVersion: "1.0"
-                    },
-                    settings: state.settings,
-                    customers: state.customers,
-                    products: state.products,
-                    orders: state.orders
+                    metadata: { appName: getActiveSettings().name || "Mi Negocio", exportedAt: new Date().toISOString(), schemaVersion: "1.0" },
+                    settings: getActiveSettings(),
+                    customers: getActiveCustomers(),
+                    products: getActiveProducts(),
+                    orders: getActiveOrders(),
+                    logs: getActiveLogs()
                 };
 
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
                 const downloadAnchor = document.createElement('a');
                 const today = new Date().toISOString().slice(0, 10);
-                
                 downloadAnchor.setAttribute("href", dataStr);
                 downloadAnchor.setAttribute("download", `respaldo_negocio_${today}.json`);
                 document.body.appendChild(downloadAnchor);
                 downloadAnchor.click();
                 downloadAnchor.remove();
 
-                showToast('Respaldo JSON descargado');
+                window.showToast('Respaldo JSON descargado');
+                window.logActivity('configuracion', 'exportar_json', 'Respaldo JSON Exportado', 'Archivo descargado');
             } catch (err) {
-                showToast('Error al generar respaldo', 'error');
+                window.showToast('Error al exportar JSON', 'error');
             }
-        });
+        };
 
-        document.getElementById('json-file-input').addEventListener('change', (e) => {
-            const file = e.target.files && e.target.files[0];
+        window.handleImportJSONFile = (event) => {
+            const file = event.target.files && event.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = async (event) => {
+            reader.onload = async (e) => {
                 try {
-                    const backup = JSON.parse(event.target.result);
-                    if (!backup || typeof backup !== 'object') throw new Error('Formato inválido');
-
-                    showToast('Subiendo datos a Firebase...', 'success');
+                    const backup = JSON.parse(e.target.result);
+                    if (!backup || typeof backup !== 'object') throw new Error("Archivo JSON no válido");
 
                     if (backup.settings) {
-                        await setDoc(doc(db, dbCollectionPath('settings'), 'business_info'), normalizeJSON('settings', backup.settings));
+                        await setDoc(doc(db, dbCollectionPath('settings'), 'business_info'), window.normalizeJSON('settings', backup.settings));
                     }
 
                     if (Array.isArray(backup.customers)) {
-                        for (const cust of backup.customers) {
-                            if (cust.id) {
-                                const { id, ...data } = cust;
-                                await setDoc(doc(db, dbCollectionPath('customers'), id), normalizeJSON('customer', data));
-                            }
+                        for (const c of backup.customers) {
+                            if (c.id) await setDoc(doc(db, dbCollectionPath('customers'), c.id), window.normalizeJSON('customer', c));
                         }
                     }
 
                     if (Array.isArray(backup.products)) {
-                        for (const prod of backup.products) {
-                            if (prod.id) {
-                                const { id, ...data } = prod;
-                                await setDoc(doc(db, dbCollectionPath('products'), id), normalizeJSON('product', data));
-                            }
+                        for (const p of backup.products) {
+                            if (p.id) await setDoc(doc(db, dbCollectionPath('products'), p.id), window.normalizeJSON('product', p));
                         }
                     }
 
                     if (Array.isArray(backup.orders)) {
-                        for (const ord of backup.orders) {
-                            if (ord.id) {
-                                const { id, ...data } = ord;
-                                await setDoc(doc(db, dbCollectionPath('orders'), id), normalizeJSON('order', data));
-                            }
+                        for (const o of backup.orders) {
+                            if (o.id) await setDoc(doc(db, dbCollectionPath('orders'), o.id), window.normalizeJSON('order', o));
                         }
                     }
 
-                    showToast('¡Respaldo JSON sincronizado en Firebase!');
+                    if (Array.isArray(backup.logs)) {
+                        for (const l of backup.logs) {
+                            if (l.id) await setDoc(doc(db, dbCollectionPath('logs'), l.id), window.normalizeJSON('log', l));
+                        }
+                    }
+
+                    window.showToast('¡Respaldo JSON cargado en Firebase!');
+                    await window.logActivity('configuracion', 'importar_json', 'Respaldo JSON Importado', 'Sincronizado a Firebase');
                 } catch (err) {
-                    showToast('Error al importar archivo JSON', 'error');
+                    window.showToast('Error al importar el archivo JSON', 'error');
                 } finally {
-                    e.target.value = '';
+                    event.target.value = '';
                 }
             };
             reader.readAsText(file);
-        });
+        };
 
+        // Developer Sandbox Toggle
+        window.enterSandboxMode = () => {
+            window.state.isSandbox = true;
+            window.state.sandboxData = {
+                customers: JSON.parse(JSON.stringify(window.state.customers)),
+                products: JSON.parse(JSON.stringify(window.state.products)),
+                orders: JSON.parse(JSON.stringify(window.state.orders)),
+                logs: JSON.parse(JSON.stringify(window.state.logs)),
+                settings: JSON.parse(JSON.stringify(window.state.settings))
+            };
+            document.getElementById('sandbox-banner').classList.remove('hidden');
+            window.showToast('🧪 MODO DESARROLLADOR ACTIVO: Cambios solo en RAM local');
+            window.renderAllViews();
+        };
+
+        window.exitSandboxMode = () => {
+            window.state.isSandbox = false;
+            window.state.sandboxData = null;
+            document.getElementById('sandbox-banner').classList.add('hidden');
+            window.showToast('Saliendo del modo pruebas. Conectado a Firebase');
+            window.renderAllViews();
+        };
+
+        // Populate Selects
+        window.renderSelectOptions = () => {
+            const custSelect = document.getElementById('ord-customer-select');
+            custSelect.innerHTML = `<option value="">Selecciona un cliente...</option>` + 
+                getActiveCustomers().map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+            const prodSelect = document.getElementById('ord-product-select');
+            prodSelect.innerHTML = `<option value="">Selecciona un producto...</option>` + 
+                getActiveProducts().map(p => {
+                    const price = window.getEffectivePrice(p);
+                    const promo = window.getPromoStatus(p);
+                    return `<option value="${p.id}">${p.name} - ${window.formatCurrency(price)} ${promo.active ? '🔥' : ''}</option>`;
+                }).join('');
+
+            const catSelect = document.getElementById('prod-category-select');
+            const categories = Array.from(new Set(getActiveProducts().map(p => p.category).filter(Boolean)));
+            catSelect.innerHTML = `<option value="">Todas las categorías...</option>` + 
+                categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        };
+
+        // Modal Helpers
+        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+
+        // Render All Views
+        window.renderAllViews = () => {
+            window.renderDashboard();
+            window.renderOrders();
+            window.renderCustomers();
+            window.renderProducts();
+            window.renderLogs();
+            window.renderSettingsValues();
+            window.renderSelectOptions();
+        };
+
+        // Initialize App on DOM Load
+        window.addEventListener('DOMContentLoaded', () => {
+            initAuthAndSync();
+        });
     </script>
 </body>
 </html>
