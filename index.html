@@ -6,6 +6,8 @@
     <title>Gestor de Pedidos</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2canvas CDN for Ticket Image Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -62,7 +64,7 @@
             <div class="space-y-6">
                 <div class="px-2">
                     <h1 id="sidebar-business-name" class="text-xl font-black text-indigo-400 tracking-tight truncate">Mi Negocio</h1>
-                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-0.5">Gestor de Pedidos v2.5</p>
+                    <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider mt-0.5">Gestor de Pedidos v2.8</p>
                 </div>
                 
                 <nav class="space-y-1.5">
@@ -131,7 +133,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <h2 class="text-2xl font-black text-slate-800 tracking-tight">Resumen Financiero</h2>
-                        <p class="text-xs text-slate-500">Métricas clave e ingresos del negocio en tiempo real</p>
+                        <p class="text-xs text-slate-500">Métricas de caja y balance del negocio con precisión temporal</p>
                     </div>
                     <div class="flex bg-slate-200 p-1 rounded-xl text-xs font-bold gap-1 self-start sm:self-auto">
                         <button onclick="window.setDashFilter('today')" id="dash-filter-today" class="dash-filter-btn px-3 py-1.5 rounded-lg transition bg-white text-indigo-600 shadow-xs">Hoy</button>
@@ -143,19 +145,19 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200/50">
-                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Total Cobrado</h3>
+                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Total Cobrado (Entradas de Caja)</h3>
                         <p id="dash-total-cobrado" class="text-3xl font-black mt-2">$0.00</p>
-                        <p class="text-[11px] opacity-80 mt-1">Suma acumulada de abonos y liquidaciones</p>
+                        <p class="text-[11px] opacity-80 mt-1">Suma de todos los abonos/pagos recibidos en el período</p>
                     </div>
                     <div class="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg shadow-amber-200/50">
-                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Por Cobrar</h3>
+                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Por Cobrar (Saldo Pendiente Activo)</h3>
                         <p id="dash-por-cobrar" class="text-3xl font-black mt-2">$0.00</p>
-                        <p class="text-[11px] opacity-80 mt-1">Saldos pendientes en pedidos activos</p>
+                        <p class="text-[11px] opacity-80 mt-1">Deuda acumulada total de todos los pedidos activos</p>
                     </div>
                     <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200/50">
-                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Ganancia Neta</h3>
+                        <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Ganancia Neta Proyectada</h3>
                         <p id="dash-ganancia-neta" class="text-3xl font-black mt-2">$0.00</p>
-                        <p class="text-[11px] opacity-80 mt-1">Precio final cobrado menos costo de proveedor</p>
+                        <p class="text-[11px] opacity-80 mt-1">Precio cobrado menos costo de proveedor congelado</p>
                     </div>
                 </div>
 
@@ -270,8 +272,8 @@
             <section id="tab-settings" class="tab-page hidden max-w-xl mx-auto space-y-6">
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
                     <div>
-                        <h2 class="text-2xl font-black text-slate-800 tracking-tight">Configuración del Negocio</h2>
-                        <p class="text-xs text-slate-500 mt-1">Información impresa en tickets y seguridad de acceso</p>
+                        <h2 class="text-2xl font-black text-slate-800 tracking-tight">Configuración del Negocio y Marca</h2>
+                        <p class="text-xs text-slate-500 mt-1">Personaliza el logo, redes sociales y datos impresos en tickets</p>
                     </div>
 
                     <form onsubmit="window.saveSettings(event)" class="space-y-4 pt-2">
@@ -279,9 +281,27 @@
                             <label class="block text-xs font-bold text-slate-700 uppercase">Nombre del Negocio</label>
                             <input type="text" id="cfg-name" required class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
                         </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase">Teléfono de Contacto</label>
+                                <input type="tel" id="cfg-phone" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 uppercase">Redes Sociales (ej. @MiNegocio)</label>
+                                <input type="text" id="cfg-social" placeholder="Instagram / Facebook" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 uppercase">Teléfono de Contacto</label>
-                            <input type="tel" id="cfg-phone" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                            <label class="block text-xs font-bold text-slate-700 uppercase">URL del Logotipo del Negocio</label>
+                            <input type="url" id="cfg-logo" placeholder="https://ejemplo.com/logo.png" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase">Eslogan o Pie de Página (Ticket)</label>
+                            <input type="text" id="cfg-slogan" placeholder="ej. ¡Belleza y bienestar para ti!" class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase">Política de Garantía / Cambios</label>
+                            <textarea id="cfg-policy" rows="2" placeholder="ej. No hay cambios en pedidos especiales." class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500"></textarea>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-700 uppercase">Dirección / Sucursal</label>
@@ -308,7 +328,7 @@
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
                     <div>
                         <h3 class="font-bold text-base text-slate-800">📦 Copia de Seguridad y Restauración (JSON)</h3>
-                        <p class="text-xs text-slate-500 mt-1">Guarda un respaldo local de todos tus datos (incluyendo bitácora) o sube un archivo JSON para sincronizar con Firebase.</p>
+                        <p class="text-xs text-slate-500 mt-1">Guarda un respaldo local de todos tus datos o sube un archivo JSON para sincronizar con Firebase.</p>
                     </div>
                     <div class="flex flex-col sm:flex-row gap-3 pt-2">
                         <button onclick="window.exportDataJSON()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl shadow-md transition text-xs flex items-center justify-center gap-2">
@@ -378,7 +398,7 @@
         </div>
     </div>
 
-    <!-- Payment Modal -->
+    <!-- Payment Modal with Change Calculator -->
     <div id="payment-modal" class="hidden fixed inset-0 modal-backdrop z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 space-y-4">
             <div class="flex justify-between items-center border-b pb-3">
@@ -387,10 +407,38 @@
             </div>
             <div id="payment-modal-summary" class="bg-slate-50 p-4 rounded-xl border text-xs"></div>
             <div id="payment-modal-list" class="space-y-2 max-h-48 overflow-y-auto"></div>
-            <form onsubmit="window.handleAddPayment(event)" class="flex gap-2 pt-2 border-t">
-                <input type="number" id="payment-amount-input" min="0.01" step="0.01" required placeholder="Monto del abono ($)..." class="flex-1 p-3 border rounded-xl text-xs bg-slate-50 outline-none">
-                <button type="submit" class="bg-emerald-600 text-white font-bold px-4 py-3 rounded-xl text-xs hover:bg-emerald-700 transition shrink-0">
-                    + Abonar
+            
+            <form onsubmit="window.handleAddPayment(event)" class="space-y-3 pt-2 border-t">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-700 uppercase">Forma de Pago</label>
+                        <select id="payment-method-select" onchange="window.toggleCashFields(this.value)" class="mt-1 w-full p-2.5 border rounded-xl text-xs bg-slate-50 outline-none">
+                            <option value="Efectivo">💵 Efectivo</option>
+                            <option value="Transferencia (SPEI)">📲 Transferencia (SPEI)</option>
+                            <option value="Tarjeta">💳 Tarjeta</option>
+                            <option value="Mercado Pago">📱 Mercado Pago</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-700 uppercase">Monto a Abonar ($)</label>
+                        <input type="number" id="payment-amount-input" min="0.01" step="0.01" required oninput="window.calcCashChange()" placeholder="0.00" class="mt-1 w-full p-2.5 border rounded-xl text-xs bg-slate-50 outline-none">
+                    </div>
+                </div>
+
+                <!-- Cash Change Calculator -->
+                <div id="cash-change-container" class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-2">
+                    <div>
+                        <label class="block text-[10px] font-bold text-emerald-900 uppercase">Monto Recibido del Cliente ($)</label>
+                        <input type="number" id="payment-received-input" min="0" step="0.01" oninput="window.calcCashChange()" placeholder="0.00" class="mt-1 w-full p-2.5 border rounded-xl text-xs bg-white outline-none font-bold">
+                    </div>
+                    <div class="flex justify-between items-center text-xs pt-1 border-t border-emerald-200">
+                        <span class="font-bold text-emerald-900">Cambio a Devolver:</span>
+                        <span id="payment-change-display" class="font-black text-emerald-700 text-sm">$0.00</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl text-xs hover:bg-emerald-700 transition shadow-md">
+                    + Registrar Abono
                 </button>
             </form>
         </div>
@@ -404,11 +452,14 @@
                 <button onclick="window.closeModal('ticket-modal')" class="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
             </div>
 
-            <div id="printable-ticket" class="bg-white p-4 border rounded-2xl font-mono text-xs text-slate-800 space-y-4"></div>
+            <div id="printable-ticket" class="bg-white p-5 border rounded-2xl font-mono text-xs text-slate-800 space-y-4 shadow-xs"></div>
 
             <div class="space-y-2 pt-2 no-print">
                 <button onclick="window.printTicket()" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition text-xs flex items-center justify-center gap-2">
                     🖨️ Imprimir / Guardar PDF
+                </button>
+                <button onclick="window.exportTicketImage()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition text-xs flex items-center justify-center gap-2">
+                    📸 Descargar como Imagen (PNG)
                 </button>
                 <button onclick="window.shareTicketWhatsApp()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition text-xs flex items-center justify-center gap-2">
                     📱 Enviar por WhatsApp
@@ -460,7 +511,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase">Categoría</label>
-                    <input type="text" id="prod-category-input" placeholder="ej. Comida, Bebidas, Postres..." class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
+                    <input type="text" id="prod-category-input" placeholder="ej. Cuidado de la Piel, Maquillaje, Salud..." class="mt-1 w-full p-3 border rounded-xl text-xs bg-slate-50 outline-none focus:bg-white">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase">Descripción</label>
@@ -508,6 +559,17 @@
                     <p class="text-slate-500 flex justify-between"><span>Margen en Oferta:</span> <span id="margin-promo-val" class="font-bold text-emerald-600">$0.00</span></p>
                 </div>
 
+                <!-- Modificar Pedidos Activos Checkbox -->
+                <div id="prod-update-orders-container" class="hidden bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 space-y-1">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="prod-update-orders-checkbox" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <span class="text-xs font-bold text-slate-800">Actualizar este producto en pedidos activos existentes</span>
+                    </label>
+                    <p class="text-[10px] text-slate-500 ml-6">
+                        ⚠️ <strong>Por defecto no se marca:</strong> Los pedidos realizados conservan su precio original. Si marcas esta casilla, el nuevo precio, costo y nombre se aplicarán a todas las cuentas pendientes abiertas.
+                    </p>
+                </div>
+
                 <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition text-xs">
                     Guardar Producto
                 </button>
@@ -522,13 +584,13 @@
         import { getFirestore, collection, doc, setDoc, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const customFirebaseConfig = {
-            apiKey: "AIzaSyC-Qu56m35KtD9DIq17Qk3lu1Ai4a02WJA",
-            authDomain: "punto-de-venta-3c290.firebaseapp.com",
-            projectId: "punto-de-venta-3c290",
-            storageBucket: "punto-de-venta-3c290.firebasestorage.app",
-            messagingSenderId: "239887899740",
-            appId: "1:239887899740:web:9622470a64e0dd6f249a99"
-        };
+  apiKey: "AIzaSyC-Qu56m35KtD9DIq17Qk3lu1Ai4a02WJA",
+  authDomain: "punto-de-venta-3c290.firebaseapp.com",
+  projectId: "punto-de-venta-3c290",
+  storageBucket: "punto-de-venta-3c290.firebasestorage.app",
+  messagingSenderId: "239887899740",
+  appId: "1:239887899740:web:9622470a64e0dd6f249a99"
+};
 
         const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config && __firebase_config !== '{}')
             ? JSON.parse(__firebase_config)
@@ -547,7 +609,16 @@
             products: [],
             orders: [],
             logs: [],
-            settings: { name: 'Mi Negocio', phone: '', address: '', pin: '1234' },
+            settings: { 
+                name: 'Mi Negocio', 
+                phone: '', 
+                address: '', 
+                pin: '1234',
+                logoUrl: '',
+                socialMedia: '',
+                slogan: '',
+                policy: ''
+            },
             activeTab: 'dashboard',
             isLocked: true,
             isSandbox: false,
@@ -670,6 +741,7 @@
                 productId: order.productId,
                 productName: order.productName || 'Producto',
                 quantity: Number(order.quantity || 1),
+                costPrice: Number(order.costPrice || 0),
                 finalPrice: Number(order.finalPrice || 0),
                 originalPrice: Number(order.originalPrice || order.finalPrice || 0),
                 timestamp: window.formatTime(order.createdAt)
@@ -777,32 +849,61 @@
             window.renderAllViews();
         };
 
-        // Render Dashboard
+        // Render Dashboard (PRECISE FINANCIAL CALCULATIONS)
         window.renderDashboard = () => {
-            const orders = getActiveOrders().filter(o => !o.archived);
+            const orders = getActiveOrders();
             const products = getActiveProducts();
             const customers = getActiveCustomers();
 
             const now = new Date();
             const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0,0,0,0);
+
+            const startOfWeek = new Date(now);
+            const dayOfWeek = startOfWeek.getDay();
+            const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
+            startOfWeek.setDate(startOfWeek.getDate() + diffToMonday);
+            startOfWeek.setHours(0, 0, 0, 0);
+
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-            const filteredOrders = orders.filter(o => {
-                const orderDate = new Date(o.createdAt);
-                if (window.state.dashTimeFilter === 'today') return orderDate >= startOfToday;
-                if (window.state.dashTimeFilter === 'week') return orderDate >= startOfWeek;
-                if (window.state.dashTimeFilter === 'month') return orderDate >= startOfMonth;
+            const isDateInFilter = (dateStr) => {
+                if (!dateStr) return false;
+                const d = new Date(dateStr);
+                if (window.state.dashTimeFilter === 'today') return d >= startOfToday;
+                if (window.state.dashTimeFilter === 'week') return d >= startOfWeek;
+                if (window.state.dashTimeFilter === 'month') return d >= startOfMonth;
                 return true;
+            };
+
+            // 1. TOTAL COBRADO: Sum of ALL payments received WITHIN the selected time period (with legacy fallback)
+            let totalCobrado = 0;
+            orders.forEach(o => {
+                (o.payments || []).forEach(p => {
+                    const paymentDate = p.date || o.createdAt;
+                    if (isDateInFilter(paymentDate)) {
+                        totalCobrado += Number(p.amount || 0);
+                    }
+                });
             });
 
-            const totalCobrado = filteredOrders.reduce((sum, o) => sum + window.getOrderTotalPaid(o), 0);
-            const porCobrar = filteredOrders.reduce((sum, o) => sum + Math.max(0, window.getOrderTotal(o) - window.getOrderTotalPaid(o)), 0);
-            const gananciaNeta = filteredOrders.reduce((sum, o) => {
+            // 2. POR COBRAR: Total active accounts receivable balance across ALL unpaid orders
+            const activeUnpaidOrders = orders.filter(o => !o.archived);
+            const porCobrar = activeUnpaidOrders.reduce((sum, o) => {
+                const total = window.getOrderTotal(o);
+                const paid = window.getOrderTotalPaid(o);
+                return sum + Math.max(0, total - paid);
+            }, 0);
+
+            // 3. GANANCIA NETA: Net margin on sales created within the selected period
+            const filteredOrdersByCreation = orders.filter(o => !o.archived && isDateInFilter(o.createdAt));
+
+            const gananciaNeta = filteredOrdersByCreation.reduce((sum, o) => {
                 const items = window.getOrderItems(o);
                 return sum + items.reduce((iSum, item) => {
                     const prod = products.find(p => p.id === item.productId);
-                    const cost = prod ? Number(prod.costPrice || 0) : 0;
+                    const cost = (item.costPrice !== undefined && item.costPrice !== null)
+                        ? Number(item.costPrice)
+                        : (prod ? Number(prod.costPrice || 0) : 0);
                     return iSum + ((Number(item.finalPrice) - cost) * Number(item.quantity));
                 }, 0);
             }, 0);
@@ -812,10 +913,10 @@
             document.getElementById('dash-ganancia-neta').textContent = window.formatCurrency(gananciaNeta);
 
             const recentContainer = document.getElementById('dash-recent-orders');
-            if (filteredOrders.length === 0) {
+            if (filteredOrdersByCreation.length === 0) {
                 recentContainer.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No hay pedidos registrados en este período.</p>`;
             } else {
-                recentContainer.innerHTML = filteredOrders.slice(0, 5).map(o => {
+                recentContainer.innerHTML = filteredOrdersByCreation.slice(0, 5).map(o => {
                     const cust = customers.find(c => c.id === o.customerId);
                     const items = window.getOrderItems(o);
                     const total = window.getOrderTotal(o);
@@ -852,13 +953,11 @@
             const customers = getActiveCustomers();
             const products = getActiveProducts();
 
-            // Status Filter
             if (window.state.ordStatusFilter === 'active') orders = orders.filter(o => !o.archived);
             else if (window.state.ordStatusFilter === 'pending') orders = orders.filter(o => !o.archived && window.getOrderTotalPaid(o) < window.getOrderTotal(o));
             else if (window.state.ordStatusFilter === 'paid') orders = orders.filter(o => !o.archived && window.getOrderTotalPaid(o) >= window.getOrderTotal(o));
             else if (window.state.ordStatusFilter === 'archived') orders = orders.filter(o => o.archived);
 
-            // Search Query Filter
             if (window.state.ordSearchQuery.trim()) {
                 const q = window.state.ordSearchQuery.toLowerCase();
                 orders = orders.filter(o => {
@@ -1003,6 +1102,7 @@
                 productId: product.id,
                 productName: product.name,
                 quantity: quantity,
+                costPrice: Number(product.costPrice || 0),
                 finalPrice: finalPrice,
                 originalPrice: Number(product.salePrice || finalPrice),
                 timestamp: timeNow
@@ -1104,7 +1204,7 @@
             await window.logActivity('pedido', 'archivar', `${newStatus ? 'Archivado' : 'Desarchivado'} de Pedido`, `Pedido ID: ${orderId}`);
         };
 
-        // Payment Modal & Logic
+        // Payment Modal & Change Calculator Logic
         window.openPaymentModal = (orderId) => {
             const order = getActiveOrders().find(o => o.id === orderId);
             if (!order) return;
@@ -1134,7 +1234,8 @@
                 listContainer.innerHTML = (order.payments || []).map(p => `
                     <div class="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border text-xs">
                         <div>
-                            <p class="font-bold text-slate-800">${window.formatCurrency(p.amount)}</p>
+                            <p class="font-bold text-slate-800">${window.formatCurrency(p.amount)} <span class="font-normal text-indigo-600">(${p.method || 'Efectivo'})</span></p>
+                            ${p.receivedAmount ? `<p class="text-[10px] text-slate-500">Recibido: ${window.formatCurrency(p.receivedAmount)} | Cambio: ${window.formatCurrency(p.changeAmount || 0)}</p>` : ''}
                             <p class="text-[10px] text-slate-400">${window.formatDate(p.date)}</p>
                         </div>
                         <button onclick="window.deletePayment('${p.id}')" class="text-slate-400 hover:text-red-500 font-bold px-2">✕</button>
@@ -1142,16 +1243,51 @@
                 `).join('');
             }
 
+            document.getElementById('payment-amount-input').value = pending > 0 ? pending : '';
+            window.toggleCashFields('Efectivo');
             document.getElementById('payment-modal').classList.remove('hidden');
+        };
+
+        window.toggleCashFields = (method) => {
+            const container = document.getElementById('cash-change-container');
+            if (method === 'Efectivo') {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+            window.calcCashChange();
+        };
+
+        window.calcCashChange = () => {
+            const method = document.getElementById('payment-method-select').value;
+            if (method !== 'Efectivo') return;
+
+            const amount = Number(document.getElementById('payment-amount-input').value || 0);
+            const received = Number(document.getElementById('payment-received-input').value || 0);
+            const change = Math.max(0, received - amount);
+
+            document.getElementById('payment-change-display').textContent = window.formatCurrency(change);
         };
 
         window.handleAddPayment = async (e) => {
             e.preventDefault();
             const order = window.state.currentOrder;
             const amount = Number(document.getElementById('payment-amount-input').value);
+            const method = document.getElementById('payment-method-select').value;
+            const receivedAmount = method === 'Efectivo' ? Number(document.getElementById('payment-received-input').value || 0) : amount;
+            const changeAmount = method === 'Efectivo' ? Math.max(0, receivedAmount - amount) : 0;
+
             if (!order || amount <= 0) return;
 
-            const newPayment = { id: 'pay_' + Date.now(), amount, date: new Date().toISOString() };
+            const newPayment = {
+                id: 'pay_' + Date.now(),
+                amount,
+                method,
+                receivedAmount,
+                changeAmount,
+                date: new Date().toISOString()
+            };
+
             const updatedPayments = [...(order.payments || []), newPayment];
 
             if (window.state.isSandbox) {
@@ -1164,8 +1300,9 @@
             }
 
             window.showToast('Abono registrado correctamente');
-            await window.logActivity('abono', 'agregar', `Abono de ${window.formatCurrency(amount)}`, `Pedido ID: ${order.id}`);
+            await window.logActivity('abono', 'agregar', `Abono de ${window.formatCurrency(amount)} (${method})`, `Pedido ID: ${order.id}`);
             document.getElementById('payment-amount-input').value = '';
+            document.getElementById('payment-received-input').value = '';
             window.openPaymentModal(order.id);
         };
 
@@ -1189,7 +1326,7 @@
             window.openPaymentModal(order.id);
         };
 
-        // Ticket Logic
+        // Ticket Logic with Branding & Socials & PNG Export
         window.openTicketModal = (orderId) => {
             const order = getActiveOrders().find(o => o.id === orderId);
             if (!order) return;
@@ -1201,16 +1338,19 @@
             const total = window.getOrderTotal(order);
             const paid = window.getOrderTotalPaid(order);
             const pending = Math.max(0, total - paid);
+            const lastPayment = (order.payments || []).slice(-1)[0];
 
             document.getElementById('printable-ticket').innerHTML = `
-                <div class="text-center border-b border-dashed border-slate-300 pb-3">
-                    <h2 class="text-base font-black uppercase tracking-wider">${settings.name || 'Mi Negocio'}</h2>
+                <div class="text-center border-b border-dashed border-slate-300 pb-3 space-y-1">
+                    ${settings.logoUrl ? `<img src="${settings.logoUrl}" alt="Logo" crossorigin="anonymous" class="w-12 h-12 object-contain mx-auto rounded-full mb-1">` : ''}
+                    <h2 class="text-sm font-black uppercase tracking-wider">${settings.name || 'Mi Negocio'}</h2>
+                    ${settings.slogan ? `<p class="text-[10px] text-indigo-600 font-bold italic">"${settings.slogan}"</p>` : ''}
                     <p class="text-[10px] text-slate-500">${settings.address || ''}</p>
-                    <p class="text-[10px] text-slate-500">Tel: ${settings.phone || 'N/A'}</p>
-                    <p class="mt-1 text-[9px] text-slate-400">${window.formatDate(order.createdAt)}</p>
+                    <p class="text-[10px] text-slate-500">Tel: ${settings.phone || 'N/A'} ${settings.socialMedia ? `| ${settings.socialMedia}` : ''}</p>
+                    <p class="mt-1 text-[9px] text-slate-400">Fecha: ${window.formatDate(order.createdAt)}</p>
                 </div>
 
-                <div class="text-xs">
+                <div class="text-xs pt-1">
                     <p><span class="font-bold">Cliente:</span> ${customer ? customer.name : 'N/A'}</p>
                     ${customer && customer.phone ? `<p><span class="font-bold">Tel:</span> ${customer.phone}</p>` : ''}
                 </div>
@@ -1237,14 +1377,17 @@
                 <div class="space-y-1 text-right text-xs">
                     <p class="text-sm font-black">Total: ${window.formatCurrency(total)}</p>
                     <p class="text-slate-500">Abonado: ${window.formatCurrency(paid)}</p>
+                    ${lastPayment ? `<p class="text-[10px] text-indigo-700">Método: ${lastPayment.method} ${lastPayment.method === 'Efectivo' && lastPayment.receivedAmount ? `| Recibido: ${window.formatCurrency(lastPayment.receivedAmount)} | Cambio: ${window.formatCurrency(lastPayment.changeAmount)}` : ''}</p>` : ''}
                     <p class="font-bold border-t border-dashed pt-1">Pendiente: ${window.formatCurrency(pending)}</p>
                     <p class="mt-2 text-center text-xs font-black uppercase tracking-widest py-1 rounded-lg ${pending === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
-                        ${pending === 0 ? 'PAGADO EN LIQUIDADO' : 'PENDIENTE DE PAGO'}
+                        ${pending === 0 ? 'PAGADO / LIQUIDADO' : 'PENDIENTE DE PAGO'}
                     </p>
                 </div>
 
+                ${settings.policy ? `<div class="text-[9px] text-slate-500 text-center italic border-t border-dashed pt-2"><p>${settings.policy}</p></div>` : ''}
+
                 <div class="text-center text-[10px] text-slate-400 pt-2 border-t border-dashed">
-                    ¡Gracias por su compra!
+                    ¡Gracias por su preferencia!
                 </div>
             `;
 
@@ -1252,6 +1395,20 @@
         };
 
         window.printTicket = () => window.print();
+
+        window.exportTicketImage = async () => {
+            const ticketEl = document.getElementById('printable-ticket');
+            try {
+                const canvas = await html2canvas(ticketEl, { scale: 2, backgroundColor: '#ffffff', useCORS: true, allowTaint: true });
+                const link = document.createElement('a');
+                link.download = `ticket_${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                window.showToast('Ticket descargado como imagen PNG');
+            } catch (err) {
+                window.showToast('Error al exportar la imagen', 'error');
+            }
+        };
 
         window.shareTicketWhatsApp = () => {
             const order = window.state.currentOrder;
@@ -1271,6 +1428,7 @@
             msg += `\n*Total:* ${window.formatCurrency(total)}\n`;
             msg += `*Abonado:* ${window.formatCurrency(paid)}\n`;
             msg += `*Pendiente:* *${window.formatCurrency(pending)}*\n\n`;
+            if (settings.socialMedia) msg += `Síguenos: ${settings.socialMedia}\n\n`;
             msg += `¡Gracias por tu compra!`;
 
             const phoneClean = customer && customer.phone ? customer.phone.replace(/\D/g, '') : '';
@@ -1352,6 +1510,16 @@
             const address = document.getElementById('cust-address-input').value;
 
             const custData = window.normalizeJSON('customer', { name, phone, address });
+            const oldCust = id ? getActiveCustomers().find(c => c.id === id) : null;
+            
+            let changesDetails = `Cliente creado: ${name} | Tel: ${phone || 'N/A'} | Dirección: ${address || 'N/A'}`;
+            if (oldCust) {
+                const diffs = [];
+                if (oldCust.name !== name) diffs.push(`Nombre: '${oldCust.name}' ➔ '${name}'`);
+                if (oldCust.phone !== phone) diffs.push(`Tel: '${oldCust.phone || 'N/A'}' ➔ '${phone || 'N/A'}'`);
+                if (oldCust.address !== address) diffs.push(`Dirección actualizada`);
+                changesDetails = diffs.length > 0 ? diffs.join(' | ') : `Sin cambios detectados en datos de ${name}`;
+            }
 
             if (id) {
                 if (window.state.isSandbox) {
@@ -1372,11 +1540,12 @@
                 window.showToast('Cliente registrado');
             }
 
-            await window.logActivity('cliente', id ? 'editar' : 'crear', `Cliente: ${name}`, `Tel: ${phone}`);
+            await window.logActivity('cliente', id ? 'editar' : 'crear', `Cliente ${id ? 'Editado' : 'Creado'}: ${name}`, changesDetails);
             window.closeModal('customer-modal');
         };
 
         window.deleteCustomer = async (customerId) => {
+            const cust = getActiveCustomers().find(c => c.id === customerId);
             const hasOrders = getActiveOrders().some(o => o.customerId === customerId);
             if (hasOrders) {
                 window.showToast('No se puede borrar: El cliente tiene pedidos en el historial.', 'error');
@@ -1390,7 +1559,7 @@
                 await deleteDoc(doc(db, dbCollectionPath('customers'), customerId));
             }
             window.showToast('Cliente eliminado');
-            await window.logActivity('cliente', 'eliminar', 'Cliente eliminado', `ID: ${customerId}`);
+            await window.logActivity('cliente', 'eliminar', `Cliente Eliminado: ${cust ? cust.name : customerId}`, `ID: ${customerId}`);
         };
 
         window.handleCustomerSearch = (q) => {
@@ -1457,6 +1626,11 @@
 
         window.openProductModal = (productId = null) => {
             const modal = document.getElementById('product-modal');
+            const updateOrdersBox = document.getElementById('prod-update-orders-container');
+            const updateOrdersCheck = document.getElementById('prod-update-orders-checkbox');
+            
+            if (updateOrdersCheck) updateOrdersCheck.checked = false;
+
             if (productId) {
                 const p = getActiveProducts().find(prod => prod.id === productId);
                 if (p) {
@@ -1472,6 +1646,7 @@
                     document.getElementById('prod-promo-until').value = p.promoUntil || '';
                     document.getElementById('product-modal-title').textContent = "Editar Producto";
                     window.togglePromoFields(p.promoMode || 'none');
+                    if (updateOrdersBox) updateOrdersBox.classList.remove('hidden');
                 }
             } else {
                 document.getElementById('prod-id-hidden').value = '';
@@ -1486,6 +1661,7 @@
                 document.getElementById('prod-promo-until').value = '';
                 document.getElementById('product-modal-title').textContent = "Nuevo Producto";
                 window.togglePromoFields('none');
+                if (updateOrdersBox) updateOrdersBox.classList.add('hidden');
             }
             window.calcProductMargins();
             modal.classList.remove('hidden');
@@ -1528,21 +1704,70 @@
             const promoPrice = Number(document.getElementById('prod-promo-price').value || 0);
             const promoFrom = document.getElementById('prod-promo-from').value;
             const promoUntil = document.getElementById('prod-promo-until').value;
+            const updateExistingOrders = document.getElementById('prod-update-orders-checkbox')?.checked || false;
 
             const prodData = window.normalizeJSON('product', {
                 name, category, description, costPrice, salePrice,
                 promoMode, promoPrice, promoFrom, promoUntil
             });
 
+            const effectivePrice = window.getEffectivePrice(prodData);
+            const oldProd = id ? getActiveProducts().find(p => p.id === id) : null;
+
+            let changesDetails = `Producto nuevo: ${name} | Costo: ${window.formatCurrency(costPrice)} | Venta: ${window.formatCurrency(salePrice)}`;
+            if (oldProd) {
+                const diffs = [];
+                if (oldProd.name !== name) diffs.push(`Nombre: '${oldProd.name}' ➔ '${name}'`);
+                if (Number(oldProd.costPrice) !== costPrice) diffs.push(`Costo: ${window.formatCurrency(oldProd.costPrice)} ➔ ${window.formatCurrency(costPrice)}`);
+                if (Number(oldProd.salePrice) !== salePrice) diffs.push(`Venta Normal: ${window.formatCurrency(oldProd.salePrice)} ➔ ${window.formatCurrency(salePrice)}`);
+                if (oldProd.promoMode !== promoMode || Number(oldProd.promoPrice || 0) !== promoPrice) {
+                    diffs.push(`Modo Oferta: ${oldProd.promoMode || 'none'} (${window.formatCurrency(oldProd.promoPrice || 0)}) ➔ ${promoMode} (${window.formatCurrency(promoPrice)})`);
+                }
+                if (updateExistingOrders) diffs.push(`⚡ Actualización propagada a pedidos activos`);
+                changesDetails = diffs.length > 0 ? diffs.join(' | ') : `Actualización general de ${name}`;
+            }
+
             if (id) {
                 if (window.state.isSandbox) {
                     const idx = window.state.sandboxData.products.findIndex(p => p.id === id);
                     if (idx > -1) window.state.sandboxData.products[idx] = { id, ...prodData };
-                    window.renderProducts();
                 } else {
                     await updateDoc(doc(db, dbCollectionPath('products'), id), prodData);
                 }
-                window.showToast('Producto actualizado');
+
+                if (updateExistingOrders) {
+                    const activeOrders = getActiveOrders().filter(o => !o.archived);
+                    for (const ord of activeOrders) {
+                        const items = window.getOrderItems(ord);
+                        let modified = false;
+                        const updatedItems = items.map(item => {
+                            if (item.productId === id) {
+                                modified = true;
+                                return {
+                                    ...item,
+                                    productName: name,
+                                    costPrice: costPrice,
+                                    finalPrice: effectivePrice,
+                                    originalPrice: salePrice
+                                };
+                            }
+                            return item;
+                        });
+
+                        if (modified) {
+                            if (window.state.isSandbox) {
+                                ord.items = updatedItems;
+                            } else {
+                                await updateDoc(doc(db, dbCollectionPath('orders'), ord.id), {
+                                    items: window.normalizeJSON('items', updatedItems)
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if (window.state.isSandbox) window.renderProducts();
+                window.showToast(updateExistingOrders ? 'Producto y pedidos activos actualizados' : 'Producto actualizado');
             } else {
                 if (window.state.isSandbox) {
                     window.state.sandboxData.products.push({ id: 'prod_' + Date.now(), ...prodData });
@@ -1553,7 +1778,7 @@
                 window.showToast('Producto registrado');
             }
 
-            await window.logActivity('producto', id ? 'editar' : 'crear', `Producto: ${name}`, `Precio Venta: ${window.formatCurrency(salePrice)} | Modo Oferta: ${promoMode}`);
+            await window.logActivity('producto', id ? 'editar' : 'crear', `Producto ${id ? 'Editado' : 'Creado'}: ${name}`, changesDetails);
             window.closeModal('product-modal');
         };
 
@@ -1568,10 +1793,11 @@
                 await updateDoc(doc(db, dbCollectionPath('products'), productId), { promoMode: 'none' });
             }
             window.showToast('Oferta eliminada del producto');
-            await window.logActivity('producto', 'cancelar_oferta', `Oferta Cancelada: ${product.name}`, `Regresó a precio normal de ${window.formatCurrency(product.salePrice)}`);
+            await window.logActivity('producto', 'cancelar_oferta', `Oferta Cancelada: ${product.name}`, `Precio regresó a normal (${window.formatCurrency(product.salePrice)})`);
         };
 
         window.deleteProduct = async (productId) => {
+            const prod = getActiveProducts().find(p => p.id === productId);
             const inUse = getActiveOrders().some(o => window.getOrderItems(o).some(i => i.productId === productId));
             if (inUse) {
                 window.showToast('No se puede borrar: Producto en uso en pedidos activos.', 'error');
@@ -1585,7 +1811,7 @@
                 await deleteDoc(doc(db, dbCollectionPath('products'), productId));
             }
             window.showToast('Producto eliminado');
-            await window.logActivity('producto', 'eliminar', 'Producto eliminado', `ID: ${productId}`);
+            await window.logActivity('producto', 'eliminar', `Producto Eliminado: ${prod ? prod.name : productId}`, `ID: ${productId}`);
         };
 
         window.handleProductSearch = (q) => {
@@ -1648,6 +1874,10 @@
             const s = getActiveSettings();
             document.getElementById('cfg-name').value = s.name || '';
             document.getElementById('cfg-phone').value = s.phone || '';
+            document.getElementById('cfg-social').value = s.socialMedia || '';
+            document.getElementById('cfg-logo').value = s.logoUrl || '';
+            document.getElementById('cfg-slogan').value = s.slogan || '';
+            document.getElementById('cfg-policy').value = s.policy || '';
             document.getElementById('cfg-address').value = s.address || '';
             document.getElementById('cfg-pin').value = s.pin || '1234';
             document.getElementById('cfg-confirm-pin').value = s.pin || '1234';
@@ -1657,6 +1887,10 @@
             e.preventDefault();
             const name = document.getElementById('cfg-name').value;
             const phone = document.getElementById('cfg-phone').value;
+            const socialMedia = document.getElementById('cfg-social').value;
+            const logoUrl = document.getElementById('cfg-logo').value;
+            const slogan = document.getElementById('cfg-slogan').value;
+            const policy = document.getElementById('cfg-policy').value;
             const address = document.getElementById('cfg-address').value;
             const pin = document.getElementById('cfg-pin').value;
             const confirmPin = document.getElementById('cfg-confirm-pin').value;
@@ -1666,7 +1900,15 @@
                 return;
             }
 
-            const cleanSettings = window.normalizeJSON('settings', { name, phone, address, pin });
+            const oldSettings = getActiveSettings();
+            const diffs = [];
+            if (oldSettings.name !== name) diffs.push(`Nombre: '${oldSettings.name}' ➔ '${name}'`);
+            if (oldSettings.phone !== phone) diffs.push(`Teléfono actualizado`);
+            if (oldSettings.socialMedia !== socialMedia) diffs.push(`Redes sociales actualizadas`);
+            if (oldSettings.pin !== pin) diffs.push(`🔐 PIN de seguridad modificado`);
+            if (oldSettings.slogan !== slogan) diffs.push(`Eslogan actualizado`);
+
+            const cleanSettings = window.normalizeJSON('settings', { name, phone, socialMedia, logoUrl, slogan, policy, address, pin });
 
             if (window.state.isSandbox) {
                 window.state.sandboxData.settings = cleanSettings;
@@ -1675,7 +1917,8 @@
             }
 
             window.showToast('Configuración guardada');
-            await window.logActivity('configuracion', 'editar', 'Configuración de Negocio Guardada', `Nombre: ${name} | PIN actualizado`);
+            const detailsStr = diffs.length > 0 ? diffs.join(' | ') : `Configuración general actualizada`;
+            await window.logActivity('configuracion', 'editar', 'Configuración de Negocio Modificada', detailsStr);
         };
 
         // JSON Backup / Restore
@@ -1798,10 +2041,8 @@
                 categories.map(c => `<option value="${c}">${c}</option>`).join('');
         };
 
-        // Modal Helpers
         window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
 
-        // Render All Views
         window.renderAllViews = () => {
             window.renderDashboard();
             window.renderOrders();
@@ -1812,7 +2053,6 @@
             window.renderSelectOptions();
         };
 
-        // Initialize App on DOM Load
         window.addEventListener('DOMContentLoaded', () => {
             initAuthAndSync();
         });
